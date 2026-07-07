@@ -1,0 +1,20 @@
+
+## Do zrobienia
+
+### Full APP
+
+- max 10 przypiętych konwersacji
+
+### frontend
+
+### Backend (przed / w trakcie frontendu)
+
+- dodać stream odpowiedzi w /chat endpoint
+- stworzyć osobną obsługę token expire (refresh token, może inny błąd)
+- dodać redis dla cachowania odpowiedzi
+- naprawić eodhd api tak żeby działało poprawnie (narazie jest wyłączone)
+
+
+### decyzje architektoniczne
+
+zastanowić się nad usunięciem SSE przy pin/unpid (nie potrzebne przy optimistic update na fr)

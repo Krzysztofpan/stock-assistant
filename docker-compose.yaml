@@ -1,0 +1,97 @@
+services:
+  redis:
+    image: redis:7
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    command: redis-server --port ${REDIS_PORT}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "${REDIS_PORT}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    container_name: backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        BACKEND_PORT: ${BACKEND_PORT}
+        UVICORN_HOST: ${UVICORN_HOST}
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    env_file:
+      - .env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      BACKEND_PORT: ${BACKEND_PORT}
+      FRONTEND_PORT: ${FRONTEND_PORT}
+      UVICORN_HOST: ${UVICORN_HOST}
+      # W Dockerze reload po syncu wisi na otwartych SSE (/conversations/events).
+      UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN: 3
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ['BACKEND_PORT']}/health/ready')\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    command: uv run main.py
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /app
+          ignore:
+            - pyproject.toml
+            - uv.lock
+        - action: rebuild
+          path: ./backend/pyproject.toml
+        - action: rebuild
+          path: ./backend/uv.lock
+
+  frontend:
+    container_name: frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        FRONTEND_PORT: ${FRONTEND_PORT}
+        NODE_ENV: ${NODE_ENV}
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    env_file:
+      - .env
+    environment:
+      BACKEND_HOST: backend
+      BACKEND_PORT: ${BACKEND_PORT}
+      FRONTEND_PORT: ${FRONTEND_PORT}
+    depends_on:
+      redis:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    command: npm run dev -- --port ${FRONTEND_PORT}
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: ./frontend/package.json
+        - action: rebuild
+          path: ./frontend/package-lock.json
+
+volumes:
+  redis_data:

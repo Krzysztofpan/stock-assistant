@@ -1,0 +1,25 @@
+działanie: 
+    Czat do komunikacji z asystentem na tematy giełdowe
+
+Warstwy do wprowadzenia:
+    Request limiter
+    Cache
+    Tools
+    agent
+    Security layer
+
+Request limiter:
+    - użytkownik nie może wysyłać za dużo requestów w jednostce czasu ze względu na limity api
+
+Cache:
+    - cachowanie odpowiedzi tak, aby zaoszczędzić na requestach do llm i api
+
+Tools:
+    - narzędzia do komunikacji z api, i przekazywania do odpowiedzi tylko istotnych danych
+
+Agent:
+    - agent, który wie kiedy wywołać odpowiednie narzędzie przeznaczone do zadania 
+
+Seucity layer:
+    - sprawdzanie promptów, jak i outputów przed wprowadzeniem do llm'a i po stworzeniu odpowiedzi przez llm'a, tak żeby
+    nic co nie powinno wycieknąć do użytkownika końcowego nie wyciekło, blokowanie złośliwych działań
