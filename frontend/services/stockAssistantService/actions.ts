@@ -1,8 +1,6 @@
 "use server"
 
 import type {
-  ChatRequest,
-  ChatResponse,
   ConversationBookmarkResponse,
   ConversationsParams,
   ConversationsResponse,
@@ -34,8 +32,4 @@ export async function getMessages(
   params?: MessagesParams,
 ): Promise<MessagesResponse> {
   return serverApi.getMessages(conversationId, params)
-}
-
-export async function chat(body: ChatRequest): Promise<ChatResponse> {
-  return serverApi.chat(body)
 }

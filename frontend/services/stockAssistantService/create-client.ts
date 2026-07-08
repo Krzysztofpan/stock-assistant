@@ -1,6 +1,6 @@
 import qs from "qs"
 
-import type { ChatRequest, ChatResponse, ConversationBookmarkResponse, ConversationParams, ConversationResponse, ConversationsParams, ConversationsResponse, CurrentUserResponse, MessagesParams, MessagesResponse } from "./types"
+import type { ConversationBookmarkResponse, ConversationParams, ConversationResponse, ConversationsParams, ConversationsResponse, CurrentUserResponse, MessagesParams, MessagesResponse } from "./types"
 
 export type RequestFn = <T>(path: string, init?: RequestInit) => Promise<T>
 
@@ -51,11 +51,5 @@ export function createStockAssistantClient(request: RequestFn) {
 
       return request<MessagesResponse>(`/conversations/${conversationId}/messages${query}`)
     },
-
-    chat: (body: ChatRequest) =>
-      request<ChatResponse>("/chat", {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
   }
 }

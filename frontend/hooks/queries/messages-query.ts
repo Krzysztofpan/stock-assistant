@@ -11,14 +11,6 @@ export function messagesQueryKey(conversationId: string, limit = MESSAGES_PAGE_S
   return ["messages", conversationId, { limit }] as const
 }
 
-export function chatTypingQueryKey(conversationId: string) {
-  return ["chat-typing", conversationId] as const
-}
-
-export function setChatTyping(queryClient: QueryClient, conversationId: string, isTyping: boolean) {
-  queryClient.setQueryData(chatTypingQueryKey(conversationId), isTyping)
-}
-
 export function getMessagesNextPageParam(lastPage: MessagesResponse): MessagesCursor | undefined {
   if (!lastPage.has_more) {
     return undefined
@@ -79,4 +71,36 @@ export function appendMessageToCache(queryClient: QueryClient, conversationId: s
 
 export function removeMessageFromCache(queryClient: QueryClient, conversationId: string, messageId: number, limit = MESSAGES_PAGE_SIZE) {
   updateMessagesCache(queryClient, conversationId, limit, messages => messages.filter(message => message.id !== messageId))
+}
+
+export function createStreamingAiMessage(id: number): MessageItem {
+  return {
+    id,
+    role: "ai",
+    text: "",
+    created_at: new Date().toISOString(),
+  }
+}
+
+export function getStreamingMessageIdFromCache(queryClient: QueryClient, conversationId: string, limit = MESSAGES_PAGE_SIZE): number | undefined {
+  const cached = queryClient.getQueryData<InfiniteData<MessagesResponse>>(messagesQueryKey(conversationId, limit))
+  const messages = cached?.pages[0]?.messages ?? []
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+
+    if (message.role === "ai" && message.id < 0) {
+      return message.id
+    }
+  }
+
+  return undefined
+}
+
+export function appendTokenToMessageInCache(queryClient: QueryClient, conversationId: string, messageId: number, delta: string, limit = MESSAGES_PAGE_SIZE) {
+  updateMessagesCache(queryClient, conversationId, limit, messages => messages.map(message => (message.id === messageId ? { ...message, text: message.text + delta } : message)))
+}
+
+export function replaceMessageInCache(queryClient: QueryClient, conversationId: string, messageId: number, newMessage: MessageItem, limit = MESSAGES_PAGE_SIZE) {
+  updateMessagesCache(queryClient, conversationId, limit, messages => messages.map(message => (message.id === messageId ? newMessage : message)))
 }

@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
 
 import pytest
@@ -19,6 +20,10 @@ from app.utils.tokenizer import Tokenizer
 settings = get_settings()
 
 DEFAULT_PASSWORD = "Password1"
+
+
+async def _mock_ask_stream(_messages) -> AsyncIterator[dict]:
+    yield {"type": "token", "delta": "Test response"}
 
 
 def _recreate_redis() -> None:
@@ -54,10 +59,7 @@ async def client():
     await init_db()
 
     mock_stock_assistant = AsyncMock()
-    mock_stock_assistant.ask.return_value = {
-        "response": "Test response",
-        "error": None,
-    }
+    mock_stock_assistant.ask_stream = _mock_ask_stream
 
     from app.app import app
 

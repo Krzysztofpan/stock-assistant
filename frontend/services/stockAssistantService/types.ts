@@ -15,17 +15,6 @@ export type CurrentUserResponse = {
   user: UserPublic
 }
 
-export type ChatRequest = {
-  message: string
-  conversation_id: string
-  new_conversation?: boolean
-}
-
-export type ChatResponse = {
-  message: MessageItem
-  error: ErrorDetail | null
-}
-
 export type MessageItem = {
   id: number
   role: MessageRole

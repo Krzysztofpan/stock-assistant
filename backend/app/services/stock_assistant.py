@@ -6,8 +6,11 @@ from app.graphs.stock_assistant_graph import StockAssistantGraph
 from app.models.error import ErrorDetail
 from app.services.llm_router_service import llm_router
 from langchain_core.messages import BaseMessage
+from langchain_core.messages import AIMessageChunk
 
 settings = get_settings()
+GENERATE_OUTPUT_NODE = "generate_output"
+RESPONSE_NODES = ("handle_out_of_scope", "handle_error_response")
 
 
 class StockAssistant:
@@ -15,22 +18,39 @@ class StockAssistant:
         self.stock_assistant = stock_assistant_graph.build_graph()
 
     @traceable(name="financial_agent_invoke")
-    async def ask(self, messages: list[BaseMessage]) -> dict:
+    async def ask_stream(self, messages: list[BaseMessage]):
+        last_error: dict | None = None
 
-        res = await self.stock_assistant.ainvoke({
+        async for mode, chunk in self.stock_assistant.astream({
             "messages": messages,
             "retry_count": 0,
             "topics": [],
             "sources": [],
-        })
+        }, stream_mode=["messages", "custom", "updates"]):
+            if mode == "custom":
+                label = chunk.get("label")
+                if label:
+                    yield {"type": "status", "label": label}
+                continue
 
-        error_data = res.get("error")
-        error = ErrorDetail.model_validate(error_data) if error_data else None
+            if mode == "updates":
+                for update in chunk.values():
+                    if update.get("error"):
+                        last_error = update["error"]
+                continue
 
-        return {
-            "response": res["messages"][-1].content,
-            "error": error,
-        }
+            if mode == "messages":
+                msg_chunk, metadata = chunk
+                node = metadata.get("langgraph_node")
+                if node == GENERATE_OUTPUT_NODE and isinstance(msg_chunk, AIMessageChunk):
+                    if msg_chunk.content:
+                        yield {"type": "token", "delta": msg_chunk.content}
+                    continue
+                if node in RESPONSE_NODES and msg_chunk.content:
+                    yield {"type": "token", "delta": msg_chunk.content}
+
+        if last_error:
+            yield {"type": "error_detail", "error": last_error}
 
 
 async def create_stock_assistant() -> StockAssistant:

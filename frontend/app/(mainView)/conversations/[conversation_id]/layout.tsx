@@ -1,14 +1,18 @@
-import InputWindow from "@/components/main/conversation/InputWindow"
+import ConversationLayoutClient from "@/components/main/conversation/ConversationLayoutClient"
 import { ReactNode } from "react"
 
-const ConversationLayout = ({ children }: { children: ReactNode }) => {
+type ConversationLayoutProps = {
+  children: ReactNode
+  params: Promise<{ conversation_id: string }>
+}
+
+const ConversationLayout = async ({ children, params }: ConversationLayoutProps) => {
+  const { conversation_id } = await params
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <ConversationLayoutClient conversationId={conversation_id}>
       {children}
-      <div className="sticky bottom-10 w-full max-w-3xl">
-        <InputWindow />
-      </div>
-    </div>
+    </ConversationLayoutClient>
   )
 }
 
