@@ -2,7 +2,6 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
-import { requestChat } from "@/actions/conversation.action"
 import { useOptionalChatStreamContext } from "@/contexts/chat-stream-context"
 import {
   appendMessageToCache,
@@ -45,64 +44,6 @@ export class StreamChatError extends Error {
     this.name = "StreamChatError"
     this.statusCode = statusCode
   }
-}
-
-export function useSendChatMessage(pageSize = MESSAGES_PAGE_SIZE) {
-  const queryClient = useQueryClient()
-  const chatStream = useOptionalChatStreamContext()
-
-  return useMutation({
-    mutationFn: async ({ message, conversationId: activeConversationId, newConversation }: SendChatMessageInput) => {
-      const response = await requestChat({ message, conversationId: activeConversationId, newConversation })
-
-      return response.message
-    },
-    onMutate: async ({ message, conversationId: activeConversationId }) => {
-      chatStream?.setTyping(true)
-
-      await queryClient.cancelQueries({
-        queryKey: messagesQueryKey(activeConversationId, pageSize),
-      })
-
-      const optimisticMessage = createOptimisticUserMessage(message)
-
-      appendMessageToCache(
-        queryClient,
-        activeConversationId,
-        optimisticMessage,
-        pageSize,
-      )
-
-      return { optimisticId: optimisticMessage.id, activeConversationId }
-    },
-    onSuccess: (aiMessage, _input, context) => {
-      if (!context) {
-        return
-      }
-
-      appendMessageToCache(
-        queryClient,
-        context.activeConversationId,
-        aiMessage,
-        pageSize,
-      )
-    },
-    onError: (_error, _input, context) => {
-      if (!context) {
-        return
-      }
-
-      removeMessageFromCache(
-        queryClient,
-        context.activeConversationId,
-        context.optimisticId,
-        pageSize,
-      )
-    },
-    onSettled: () => {
-      chatStream?.setTyping(false)
-    },
-  })
 }
 
 export function useSendChatMessageStream(pageSize = MESSAGES_PAGE_SIZE) {

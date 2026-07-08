@@ -1,3 +1,4 @@
+import json
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -240,7 +241,7 @@ async def test_get_conversation_messages_returns_messages(
 
 
 @pytest.mark.asyncio
-async def test_chat_returns_response(client: AsyncClient, auth_headers: dict[str, str]):
+async def test_chat_stream_returns_response(client: AsyncClient, auth_headers: dict[str, str]):
     conversation_id = str(uuid.uuid4())
 
     with patch(
@@ -248,7 +249,7 @@ async def test_chat_returns_response(client: AsyncClient, auth_headers: dict[str
         new=AsyncMock(return_value="Test title"),
     ):
         response = await client.post(
-            "/api/chat",
+            "/api/chat/stream",
             headers=auth_headers,
             json={
                 "message": "Jaka jest cena AAPL?",
@@ -257,10 +258,40 @@ async def test_chat_returns_response(client: AsyncClient, auth_headers: dict[str
         )
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["response"] == "Test response"
-    assert body["error"] is None
+    assert "text/event-stream" in response.headers["content-type"]
+
+    events = _parse_sse_events(response.text)
+    event_types = [event_type for event_type, _ in events]
+
+    assert "token" in event_types
+    assert "done" in event_types
+
+    done_data = next(data for event_type, data in events if event_type == "done")
+    assert done_data["message"]["text"] == "Test response"
+    assert done_data["error"] is None
 
     conversation = await Conversation.get_or_none(id=conversation_id)
     if conversation:
         await conversation.delete()
+
+
+def _parse_sse_events(text: str) -> list[tuple[str, dict]]:
+    events: list[tuple[str, dict]] = []
+
+    for block in text.strip().split("\n\n"):
+        if not block.strip():
+            continue
+
+        event_type = "message"
+        data = ""
+
+        for line in block.split("\n"):
+            if line.startswith("event:"):
+                event_type = line.removeprefix("event:").strip()
+            elif line.startswith("data:"):
+                data = line.removeprefix("data:").strip()
+
+        if data:
+            events.append((event_type, json.loads(data)))
+
+    return events

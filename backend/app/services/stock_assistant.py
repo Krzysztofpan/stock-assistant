@@ -18,24 +18,6 @@ class StockAssistant:
         self.stock_assistant = stock_assistant_graph.build_graph()
 
     @traceable(name="financial_agent_invoke")
-    async def ask(self, messages: list[BaseMessage]) -> dict:
-
-        res = await self.stock_assistant.ainvoke({
-            "messages": messages,
-            "retry_count": 0,
-            "topics": [],
-            "sources": [],
-        })
-
-        error_data = res.get("error")
-        error = ErrorDetail.model_validate(error_data) if error_data else None
-
-        return {
-            "response": res["messages"][-1].content,
-            "error": error,
-        }
-    
-    @traceable(name="financial_agent_invoke")
     async def ask_stream(self, messages: list[BaseMessage]):
         last_error: dict | None = None
 

@@ -1,6 +1,6 @@
 import logging
 
-from app.models.api import ChatRequest, ChatResponse
+from app.models.api import ChatRequest
 from app.errors.exceptions import InputBlockedError
 from app.errors.mapping import classify_exception
 from app.memory.conversation_memory import ConversationMemory
@@ -28,31 +28,6 @@ class ChatService:
         self.memory = memory
         self.stock_assistant = stock_assistant
         self.tokenizer = tokenizer
-
-    async def handle(self, request: ChatRequest, user_id: str) -> ChatResponse:
-        is_allowed, cleaned_message, _notes = self.security.check_input(request.message)
-
-        if not is_allowed:
-            raise InputBlockedError()
-
-        session = ConversationSession(
-            request.conversation_id,
-            user_id,
-            memory=self.memory,
-            tokenizer=self.tokenizer,
-        )
-
-        await session.ensure_exists()
-        await session.add_message("user", cleaned_message)
-
-        context = await session.get_context()
-        result = await self.stock_assistant.ask(context.to_chat_messages())
-
-        validated_response, _warnings = self.security.check_output(result["response"])
-        message = await session.add_message("ai", validated_response)
-        result["response"] = validated_response
-
-        return ChatResponse(message=message, error=result['error'])
 
     async def handle_stream(self, request: ChatRequest, user_id: str):
         is_allowed, cleaned_message, _notes = self.security.check_input(request.message)

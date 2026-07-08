@@ -13,10 +13,6 @@ class MessageItem(BaseModel):
     text: str
     created_at: datetime
 
-class ChatResponse(BaseModel):
-    message: MessageItem
-    error: Optional[ErrorDetail] = None
-
 class ChatRequest(BaseModel):
     message: str
     conversation_id: str
