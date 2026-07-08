@@ -46,6 +46,12 @@ export function createStockAssistantClient(request: RequestFn) {
       })
     },
 
+    deleteConversation: (conversationId: string) => {
+      return request<{ conversation_id: string }>(`/conversations/${conversationId}`, {
+        method: "DELETE",
+      })
+    },
+
     getMessages: (conversationId: string, params?: MessagesParams) => {
       const query = toQueryString(params)
 

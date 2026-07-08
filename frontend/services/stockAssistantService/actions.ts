@@ -27,6 +27,12 @@ export async function updateConversationBookmark(
   return serverApi.updateConversationBookmark(conversationId, is_bookmarked)
 }
 
+export async function deleteConversation(
+  conversationId: string,
+): Promise<{ conversation_id: string }> {
+  return serverApi.deleteConversation(conversationId)
+}
+
 export async function getMessages(
   conversationId: string,
   params?: MessagesParams,

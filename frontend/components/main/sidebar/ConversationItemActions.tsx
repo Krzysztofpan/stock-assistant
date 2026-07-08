@@ -1,0 +1,41 @@
+"use client"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { SidebarMenuAction } from "@/components/ui/sidebar"
+import { useConversationDelete } from "@/hooks/mutations/use-delete-conversation"
+import { Ellipsis, Trash2 } from "lucide-react"
+import { Dispatch, SetStateAction } from "react"
+
+type ConversationItemActionsProps = {
+  conversationId: string
+  optionsOpen: boolean
+  setOptionsOpen: Dispatch<SetStateAction<boolean>>
+}
+
+const ConversationItemActions = ({ conversationId, optionsOpen, setOptionsOpen }: ConversationItemActionsProps) => {
+  const { mutate } = useConversationDelete()
+
+  const handleDelete = () => {
+    mutate({ conversationId })
+  }
+
+  return (
+    <DropdownMenu open={optionsOpen} onOpenChange={setOptionsOpen} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <SidebarMenuAction className="static top-auto right-auto" aria-label="Conversation options" onClick={event => event.stopPropagation()}>
+          <Ellipsis />
+        </SidebarMenuAction>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="p-1" align="start" side="bottom" onClick={event => event.stopPropagation()}>
+        <DropdownMenuItem className="m-0 p-0">
+          <Button onClick={handleDelete} variant="destructive" className="w-full justify-start cursor-pointer">
+            <Trash2 />
+            Delete
+          </Button>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export default ConversationItemActions

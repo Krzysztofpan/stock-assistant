@@ -70,6 +70,18 @@ export function updateConversationInPool(queryClient: QueryClient, conversationI
   })
 }
 
+export function deleteConversationFromPool(queryClient: QueryClient, conversationId: string) {
+  queryClient.setQueryData<ConversationPool>(conversationEntitiesQueryKey(), (pool) => {
+    if (!pool?.[conversationId]) {
+      return pool
+    }
+
+    const { [conversationId]: _removed, ...updatedPool } = pool
+
+    return updatedPool
+  })
+}
+
 function compareConversationsByRecency(first: ConversationItem, second: ConversationItem) {
   const updatedAtDifference = new Date(second.updated_at).getTime() - new Date(first.updated_at).getTime()
 
