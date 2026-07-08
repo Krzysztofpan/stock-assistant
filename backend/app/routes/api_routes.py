@@ -1,6 +1,7 @@
 from app.services.conversation import ConversationService
 from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks,  Depends, Request
+from fastapi.responses import StreamingResponse
 from app.services.auth_service import auth_service
 from app.models.api import (
     ChatRequest,
@@ -12,6 +13,9 @@ from app.dependencies import ChatServiceDep
 from app.models.auth import TokenPayload
 from app.core.security.rate_limit import limiter
 from app.routes.conversation_routes import conversation_router
+from app.errors.exceptions import InputBlockedError, AppError
+from app.errors.mapping import classify_exception
+import json
 
 api_router = APIRouter(
     prefix="/api",
@@ -48,7 +52,69 @@ async def chat(
             body.message
         )
     return response
- 
+
+@api_router.post("/chat/stream")
+@limiter.limit(settings.rate_limit_for_question)
+async def chat_stream(
+    request: Request,
+    access_token_payload: access_token_payload,
+    body: ChatRequest,
+    background_tasks: BackgroundTasks,
+    chat_service: ChatServiceDep,
+):
+    async def event_generator():
+        try:
+            async for event in chat_service.handle_stream(body, user_id=access_token_payload.sub):
+                yield (
+                    f"event: {event['type']}\n"
+                    f"data: {json.dumps(event['data'])}\n\n"
+                )
+        except InputBlockedError as exc:
+            yield (
+                f"event: error\n"
+                f"data: {json.dumps({'message': exc.user_message, 'status_code': exc.status_code})}\n\n"
+            )
+            return
+        except AppError as exc:
+            yield (
+                f"event: error\n"
+                f"data: {json.dumps({'message': exc.user_message or exc.message, 'status_code': exc.status_code})}\n\n"
+            )
+            return
+        except Exception as exc:
+            classified = classify_exception(exc, context="chat_stream")
+            yield (
+                f"event: error\n"
+                f"data: {json.dumps(classified.detail.model_dump())}\n\n"
+            )
+            return
+
+        background_tasks.add_task(
+            chat_service.summarize_conversation,
+            body.conversation_id,
+        )
+
+        if body.new_conversation:
+            conversation_service = ConversationService(
+                body.conversation_id,
+                access_token_payload.sub,
+            )
+            background_tasks.add_task(
+                conversation_service.create_conversation_title,
+                body.message,
+            )
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+
 @api_router.get(
     "/me",
     response_model=CurrentUserDataResponse

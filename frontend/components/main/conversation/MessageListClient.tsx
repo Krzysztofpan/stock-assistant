@@ -1,9 +1,10 @@
 "use client"
 
+import ChatStreamErrorNotice from "@/components/main/conversation/ChatStreamErrorNotice"
 import MessageView from "@/components/main/conversation/MessageView"
 import TypingIndicator from "@/components/main/conversation/TypingIndicator"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useIsAiTyping } from "@/hooks/mutations/use-chat"
+import { useChatStreamContext } from "@/contexts/chat-stream-context"
 import { useInfiniteScrollSentinel } from "@/hooks/use-infinite-scroll-sentinel"
 import { flattenMessagePages, MESSAGES_PAGE_SIZE } from "@/hooks/queries/messages-query"
 import { useInfiniteMessages } from "@/hooks/queries/use-infinite-messages"
@@ -20,7 +21,7 @@ const MessageListClient = ({ conversationId, pageSize = MESSAGES_PAGE_SIZE }: Me
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteMessages(conversationId, pageSize)
   const messages = flattenMessagePages(data?.pages)
-  const isAiTyping = useIsAiTyping(conversationId)
+  const { isAiTyping, processSteps, streamError } = useChatStreamContext()
 
   const { containerRef, bottomRef, isAnchored, userScrolledUp } = useMessageListScroll({
     messages,
@@ -47,12 +48,30 @@ const MessageListClient = ({ conversationId, pageSize = MESSAGES_PAGE_SIZE }: Me
             <Skeleton className="ml-auto h-12 w-1/2 rounded-full" />
           </div>
         )}
-        {messages.map(message => (
-          <div key={message.id} data-message-id={message.id} className="scroll-mt-4">
-            <MessageView messageObj={message} />
+        {messages.map((message) => {
+          const isEmptyStreamingPlaceholder = message.role === "ai" && message.id < 0 && !message.text
+
+          if (isAiTyping && isEmptyStreamingPlaceholder) {
+            return null
+          }
+
+          return (
+            <div key={message.id} data-message-id={message.id} className="scroll-mt-4">
+              <MessageView messageObj={message} />
+            </div>
+          )
+        })}
+        {isAiTyping && (
+          <div className="-mt-4">
+            <TypingIndicator steps={processSteps} />
           </div>
-        ))}
-        {isAiTyping && <TypingIndicator />}
+        )}
+        {streamError && (
+          <ChatStreamErrorNotice
+            error={streamError}
+            variant={streamError.variant}
+          />
+        )}
         <div
           ref={bottomRef}
           aria-hidden

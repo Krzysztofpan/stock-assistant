@@ -4,7 +4,7 @@ import { FieldErrors, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { chatRequestFormSchema, chatRequestSchemaType } from "@/services/stockAssistantService/schemas"
 import { useParams, useRouter } from "next/navigation"
-import { useSendChatMessage } from "@/hooks/mutations/use-chat"
+import { useSendChatMessageStream } from "@/hooks/mutations/use-chat"
 import { setPendingChatMessage } from "@/lib/pending-chat-message"
 import { Button } from "@/components/ui/button"
 import { SendHorizonal } from "lucide-react"
@@ -36,7 +36,7 @@ const MAX_MESSAGE_LENGTH = 1000
 const InputWindow = () => {
   const router = useRouter()
   const { conversation_id } = useParams<{ conversation_id?: string }>()
-  const { mutate: sendMessage, isPending } = useSendChatMessage()
+  const { mutate: sendMessage, isPending } = useSendChatMessageStream()
   const inputRef = useRef<null | HTMLTextAreaElement>(null)
   const { register, handleSubmit, reset, control } = useForm({
     resolver: zodResolver(chatRequestFormSchema),

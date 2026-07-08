@@ -4,6 +4,7 @@ from langgraph.graph.message import add_messages
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.graph import END
+from langgraph.config import get_stream_writer
 from langchain_openai import ChatOpenAI
 from langchain.messages import HumanMessage, SystemMessage, AIMessage
 
@@ -23,6 +24,20 @@ OUT_OF_SCOPE_MESSAGE = (
     "This question is outside my scope — I can only help with the stock market "
     "and publicly traded companies."
 )
+
+PROCESS_STEP_LABELS = {
+    "select_topics": "Selecting topics",
+    "choose_sources": "Choosing sources",
+    "get_info": "Calling tools",
+    "generate_output": "Generating answer",
+}
+
+
+def _emit_process_step(step: str) -> None:
+    label = PROCESS_STEP_LABELS.get(step)
+    if label is None:
+        return
+    get_stream_writer()({"step": step, "label": label})
 
 
 class StockAssistantState(TypedDict):
@@ -108,6 +123,7 @@ class StockAssistantGraph:
         return topics == ["not related"]
 
     async def select_topics(self, state: StockAssistantState):
+        _emit_process_step("select_topics")
 
         try:
             user_question = self._last_user_message(state["messages"]).content
@@ -133,10 +149,13 @@ class StockAssistantGraph:
         }
 
     async def choose_sources(self, state: StockAssistantState):
+        _emit_process_step("choose_sources")
         sources = resolve_sources_for_topics(state["topics"])
         return {"sources": sources}
 
     async def get_info(self, state: StockAssistantState):
+        _emit_process_step("get_info")
+
         try:
             sources = state.get("sources") or []
             agent_res = await self.agent.ainvoke(
@@ -167,6 +186,8 @@ class StockAssistantGraph:
         }
 
     async def generate_output(self, state: StockAssistantState):
+        _emit_process_step("generate_output")
+
         user_question = self._last_user_message(state["messages"]).content
         template = f"""
         Based on context below, answer a user question, answer only on user question, don't add more than expected:
