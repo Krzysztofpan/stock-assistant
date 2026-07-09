@@ -1,7 +1,8 @@
 "use server"
 
 import type {
-  ConversationBookmarkResponse,
+  ConversationResponse,
+  ConversationUpdateRequest,
   ConversationsParams,
   ConversationsResponse,
   CurrentUserResponse,
@@ -20,11 +21,11 @@ export async function getConversations(
   return serverApi.getConversations(params)
 }
 
-export async function updateConversationBookmark(
+export async function updateConversation(
   conversationId: string,
-  is_bookmarked: boolean,
-): Promise<ConversationBookmarkResponse> {
-  return serverApi.updateConversationBookmark(conversationId, is_bookmarked)
+  data: ConversationUpdateRequest,
+): Promise<ConversationResponse> {
+  return serverApi.updateConversation(conversationId, data)
 }
 
 export async function deleteConversation(

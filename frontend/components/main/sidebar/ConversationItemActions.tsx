@@ -3,20 +3,25 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { SidebarMenuAction } from "@/components/ui/sidebar"
 import { useConversationDelete } from "@/hooks/mutations/use-delete-conversation"
-import { Ellipsis, Trash2 } from "lucide-react"
+import { Ellipsis, Pencil, Trash2 } from "lucide-react"
 import { Dispatch, SetStateAction } from "react"
 
 type ConversationItemActionsProps = {
   conversationId: string
   optionsOpen: boolean
   setOptionsOpen: Dispatch<SetStateAction<boolean>>
+  setEditMode: Dispatch<SetStateAction<boolean>>
 }
 
-const ConversationItemActions = ({ conversationId, optionsOpen, setOptionsOpen }: ConversationItemActionsProps) => {
+const ConversationItemActions = ({ conversationId, optionsOpen, setOptionsOpen, setEditMode }: ConversationItemActionsProps) => {
   const { mutate } = useConversationDelete()
 
   const handleDelete = () => {
     mutate({ conversationId })
+  }
+
+  const handleChangeTitle = () => {
+    setEditMode(true)
   }
 
   return (
@@ -26,7 +31,13 @@ const ConversationItemActions = ({ conversationId, optionsOpen, setOptionsOpen }
           <Ellipsis />
         </SidebarMenuAction>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="p-1" align="start" side="bottom" onClick={event => event.stopPropagation()}>
+      <DropdownMenuContent className="p-1 flex flex-col gap-1" align="start" side="bottom" onClick={event => event.stopPropagation()}>
+        <DropdownMenuItem className="m-0 p-0">
+          <Button variant="ghost" onClick={handleChangeTitle} className="w-full justify-start cursor-pointer">
+            <Pencil />
+            Edit Title
+          </Button>
+        </DropdownMenuItem>
         <DropdownMenuItem className="m-0 p-0">
           <Button onClick={handleDelete} variant="destructive" className="w-full justify-start cursor-pointer">
             <Trash2 />

@@ -46,9 +46,7 @@ export type ConversationResponse = {
   conversation: Partial<ConversationItem>
 }
 
-export type ConversationBookmarkResponse = {
-  is_bookmarked: boolean
-}
+export type ConversationUpdateRequest = Partial<Pick<ConversationItem, "title" | "is_bookmarked">>
 
 export type ConversationsParams = {
   before_updated_at?: string
