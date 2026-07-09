@@ -227,7 +227,7 @@ async def test_updating_conversation_bookmark_does_not_update_updated_at(db):
     try:
         previous_updated_at = conversation.updated_at
 
-        service = ConversationService(
+        service = await ConversationService.open(
             conversation_id=str(conversation.id),
             user_id=str(user.id),
         )
@@ -237,6 +237,44 @@ async def test_updating_conversation_bookmark_does_not_update_updated_at(db):
 
         assert updated_conversation.is_bookmarked is True
         assert updated_conversation.updated_at == previous_updated_at
+    finally:
+        await Conversation.filter(user_id=user.id).delete()
+        await user.delete()
+
+
+@pytest.mark.asyncio
+async def test_updating_conversation_title_updates_updated_at(db):
+    from app.tortoise.models.conversation import Conversation
+    from app.tortoise.models.users import User
+
+    user = await User.create(
+        name="test",
+        email=f"{uuid.uuid4()}@test.local",
+        password="secret",
+    )
+    conversation = await Conversation.create(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        title="conversation",
+    )
+    await Conversation.filter(id=conversation.id).update(
+        updated_at=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+    conversation = await Conversation.get(id=conversation.id)
+
+    try:
+        previous_updated_at = conversation.updated_at
+
+        service = await ConversationService.open(
+            conversation_id=str(conversation.id),
+            user_id=str(user.id),
+        )
+        await service.update_conversation_title("renamed conversation")
+
+        updated_conversation = await Conversation.get(id=conversation.id)
+
+        assert updated_conversation.title == "renamed conversation"
+        assert updated_conversation.updated_at > previous_updated_at
     finally:
         await Conversation.filter(user_id=user.id).delete()
         await user.delete()

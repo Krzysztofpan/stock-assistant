@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Literal, Optional
 from app.models.error import ErrorDetail
 from app.tortoise.models.messages import MessageRole
@@ -70,8 +70,12 @@ class HealthyResponse(BaseModel):
     version: str
     checks: dict[str, CheckResult]
 
-class ConversationBookmarkRequest(BaseModel):
-    is_bookmarked: bool
+class ConversationUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    is_bookmarked: Optional[bool] = None
 
-class ConversationBookmarkResponse(BaseModel):
-    is_bookmarked: bool
+    @model_validator(mode="after")
+    def validate_at_least_one_field(self):
+        if self.title is None and self.is_bookmarked is None:
+            raise ValueError("At least one field must be provided")
+        return self

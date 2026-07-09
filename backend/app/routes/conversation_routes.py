@@ -10,8 +10,7 @@ from app.models.api import (
     ConversationsResponse,
     MessagesResponse,
     ConversationResponse,
-    ConversationBookmarkResponse,
-    ConversationBookmarkRequest
+    ConversationUpdateRequest,
 )
 from app.config import get_settings
 
@@ -106,22 +105,46 @@ async def get_conversation_messages(
         before_id=before_id,
     )
 
-@conversation_router.put(
-    "/{conversation_id}/bookmark", 
-    response_model=ConversationBookmarkResponse
+@conversation_router.patch(
+    "/{conversation_id}",
+    response_model=ConversationResponse,
 )
-async def updated_conversation_is_bookmarked(
+async def update_conversation(
     conversation_id: str,
     access_token_payload: access_token_payload,
-    body: ConversationBookmarkRequest,
-) -> ConversationBookmarkResponse:
-    conversationService = ConversationService(
+    body: ConversationUpdateRequest,
+) -> ConversationResponse:
+    conversationService = await ConversationService.open(
         conversation_id=conversation_id,
-        user_id=access_token_payload.sub
+        user_id=access_token_payload.sub,
     )
 
-    await conversationService.ensure_owned_by_user()
-    updated_bookmark = await conversationService.update_conversation_bookmark(body.is_bookmarked)
+    updated_conversation: dict = {"id": conversation_id}
 
-    return ConversationBookmarkResponse(is_bookmarked=updated_bookmark)
-     
+    if body.is_bookmarked is not None:
+        updated_conversation["is_bookmarked"] = (
+            await conversationService.update_conversation_bookmark(body.is_bookmarked)
+        )
+
+    if body.title is not None:
+        updated_conversation["title"] = await conversationService.update_conversation_title(
+            body.title,
+        )
+
+    return ConversationResponse(conversation=updated_conversation)
+
+@conversation_router.delete(
+    "/{conversation_id}"
+)
+async def delete_conversation(
+    conversation_id: str,
+    access_token_payload: access_token_payload,
+):
+    conversationService = await ConversationService.open(
+        conversation_id=conversation_id,
+        user_id=access_token_payload.sub,
+    )
+
+    await conversationService.delete_conversation()
+
+    return {"conversation_id": conversation_id}
