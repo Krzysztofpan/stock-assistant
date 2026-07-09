@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
@@ -99,11 +100,56 @@ async def test_jwt_creator_includes_user_id_as_sub(db):
     await user.delete()
 
 
-def test_verify_access_token_rejects_invalid_token():
+def test_verify_access_token_rejects_malformed_token():
     with pytest.raises(AppError) as exc_info:
         AuthService().verify_access_token("not-a-valid-token")
 
     assert exc_info.value.status_code == 401
+    assert exc_info.value.user_message == "Malformed token"
+
+
+def test_verify_access_token_rejects_expired_token():
+    expired = datetime.now(timezone.utc) - timedelta(seconds=60)
+    payload = {"sub": str(uuid.uuid4()), "exp": expired}
+    token = jwt.encode(
+        payload,
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        AuthService().verify_access_token(token)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.user_message == "Token expired"
+
+
+def test_verify_access_token_rejects_invalid_signature():
+    token = jwt.encode(
+        {"sub": str(uuid.uuid4()), "exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+        "wrong-secret",
+        algorithm=settings.jwt_algorithm,
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        AuthService().verify_access_token(token)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.user_message == "Invalid token signature"
+
+
+def test_verify_access_token_rejects_invalid_payload():
+    token = jwt.encode(
+        {"exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        AuthService().verify_access_token(token)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.user_message == "Invalid token payload"
 
 
 @pytest.mark.asyncio

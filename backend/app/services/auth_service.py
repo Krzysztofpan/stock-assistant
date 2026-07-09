@@ -1,20 +1,15 @@
 from typing import Annotated
 
-import jwt
 from fastapi import Depends
 from app.errors.exceptions import AppError
-from jwt.exceptions import InvalidTokenError
-from pydantic import ValidationError
 
 from app.auth import oauth2_scheme
 from app.models.auth import TokenPayload
-from app.config import get_settings
 from app.tortoise.models.users import User
+from app.utils.jwt_verifier import decode_access_token
 from app.utils.password_hasher import password_hasher
 from tortoise.exceptions import DoesNotExist
 from app.models.api import UserPublic
-
-settings = get_settings()
 
 class AuthService:
     def __init__(self):
@@ -34,19 +29,7 @@ class AuthService:
     def verify_access_token(
         self, token: Annotated[str, Depends(oauth2_scheme)]
     ) -> TokenPayload:
-        try:
-            payload = jwt.decode(
-                token,
-                settings.jwt_secret,
-                algorithms=[settings.jwt_algorithm],
-            )
-            return TokenPayload.model_validate(payload)
-        except (InvalidTokenError, ValidationError):
-            raise AppError(
-                "Invalid token",
-                status_code=401,
-                user_message="Invalid token",
-            )
+        return decode_access_token(token)
     
     async def get_current_user(self, user_id: str) -> UserPublic:
         try:
