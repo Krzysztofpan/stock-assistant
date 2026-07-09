@@ -3,17 +3,19 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { SidebarMenuAction } from "@/components/ui/sidebar"
 import { useConversationDelete } from "@/hooks/mutations/use-delete-conversation"
-import { Ellipsis, Pencil, Trash2 } from "lucide-react"
+import { Ellipsis, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
 import { Dispatch, SetStateAction } from "react"
 
 type ConversationItemActionsProps = {
   conversationId: string
+  is_bookmarked: boolean
   optionsOpen: boolean
+  handleToggleBookmark: () => void
   setOptionsOpen: Dispatch<SetStateAction<boolean>>
   setEditMode: Dispatch<SetStateAction<boolean>>
 }
 
-const ConversationItemActions = ({ conversationId, optionsOpen, setOptionsOpen, setEditMode }: ConversationItemActionsProps) => {
+const ConversationItemActions = ({ conversationId, is_bookmarked, handleToggleBookmark, optionsOpen, setOptionsOpen, setEditMode }: ConversationItemActionsProps) => {
   const { mutate } = useConversationDelete()
 
   const handleDelete = () => {
@@ -36,6 +38,12 @@ const ConversationItemActions = ({ conversationId, optionsOpen, setOptionsOpen, 
           <Button variant="ghost" onClick={handleChangeTitle} className="w-full justify-start cursor-pointer">
             <Pencil />
             Edit Title
+          </Button>
+        </DropdownMenuItem>
+        <DropdownMenuItem className="m-0 p-0">
+          <Button onClick={handleToggleBookmark} variant="ghost" className="w-full justify-start cursor-pointer">
+            {is_bookmarked ? <PinOff /> : <Pin />}
+            {is_bookmarked ? "unpin" : "pin"}
           </Button>
         </DropdownMenuItem>
         <DropdownMenuItem className="m-0 p-0">
