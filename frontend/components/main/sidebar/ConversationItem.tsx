@@ -60,7 +60,7 @@ const ConversationItem = ({ conversation }: ConversationItemProps) => {
           {conversation.is_bookmarked ? <PinOff /> : <Pin />}
         </SidebarMenuAction>
 
-        <ConversationItemActions conversationId={conversation.id} optionsOpen={optionsOpen} setOptionsOpen={setOptionsOpen} setEditMode={setEditMode} />
+        <ConversationItemActions conversationId={conversation.id} is_bookmarked={conversation.is_bookmarked} handleToggleBookmark={handleToggleBookmark} optionsOpen={optionsOpen} setOptionsOpen={setOptionsOpen} setEditMode={setEditMode} />
       </div>
     </SidebarMenuItem>
   )
