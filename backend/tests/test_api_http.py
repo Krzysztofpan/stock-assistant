@@ -118,7 +118,34 @@ async def test_api_rejects_invalid_token(client: AsyncClient):
 
     assert response.status_code == 401
     body = response.json()
-    assert body["message"] == "Invalid token"
+    assert body["message"] == "Malformed token"
+    assert body["status_code"] == 401
+
+
+@pytest.mark.asyncio
+async def test_api_rejects_expired_token(client: AsyncClient):
+    from datetime import datetime, timedelta, timezone
+
+    import jwt
+
+    from app.config import get_settings
+
+    settings = get_settings()
+    expired = datetime.now(timezone.utc) - timedelta(seconds=60)
+    token = jwt.encode(
+        {"sub": "00000000-0000-0000-0000-000000000001", "exp": expired},
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    response = await client.get(
+        "/api/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 401
+    body = response.json()
+    assert body["message"] == "Token expired"
     assert body["status_code"] == 401
 
 
@@ -159,7 +186,7 @@ async def test_get_me_rejects_invalid_token(client: AsyncClient):
 
     assert response.status_code == 401
     body = response.json()
-    assert body["message"] == "Invalid token"
+    assert body["message"] == "Malformed token"
     assert body["status_code"] == 401
 
 
