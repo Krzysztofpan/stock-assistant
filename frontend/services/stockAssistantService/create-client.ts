@@ -1,6 +1,6 @@
 import qs from "qs"
 
-import type { ConversationBookmarkResponse, ConversationParams, ConversationResponse, ConversationsParams, ConversationsResponse, CurrentUserResponse, MessagesParams, MessagesResponse } from "./types"
+import type { ConversationParams, ConversationResponse, ConversationUpdateRequest, ConversationsParams, ConversationsResponse, CurrentUserResponse, MessagesParams, MessagesResponse } from "./types"
 
 export type RequestFn = <T>(path: string, init?: RequestInit) => Promise<T>
 
@@ -39,10 +39,10 @@ export function createStockAssistantClient(request: RequestFn) {
       return request<ConversationResponse>(`/conversations/${conversationId}${query}`)
     },
 
-    updateConversationBookmark: (conversationId: string, is_bookmarked: boolean) => {
-      return request<ConversationBookmarkResponse>(`/conversations/${conversationId}/bookmark`, {
-        method: "PUT",
-        body: JSON.stringify({ is_bookmarked }),
+    updateConversation: (conversationId: string, data: ConversationUpdateRequest) => {
+      return request<ConversationResponse>(`/conversations/${conversationId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
       })
     },
 

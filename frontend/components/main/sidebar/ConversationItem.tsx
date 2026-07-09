@@ -2,14 +2,16 @@
 
 import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar"
 import ElementWithOptionalTooltip from "@/components/utlis/ElementWithOptionalTooltip"
-import { useBookmarkUpdate } from "@/hooks/mutations/use-bookmark-update"
+import { useConversationUpdate } from "@/hooks/mutations/use-conversation-update"
 import { cn } from "@/lib/utils"
 import { ConversationItem as ConversationItemType } from "@/services/stockAssistantService/types"
-import { Ellipsis, Pin, PinOff, Trash2 } from "lucide-react"
+import { Pin, PinOff } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import ConversationItemActions from "./ConversationItemActions"
+
+import ConversationTitleEditMode from "./ConversationTitleEditMode"
 
 export type ConversationItemProps = {
   conversation: ConversationItemType
@@ -22,18 +24,28 @@ const actionsVisibilityClassName = cn("opacity-0 pointer-events-none transition-
 const ConversationItem = ({ conversation }: ConversationItemProps) => {
   const pathname = usePathname()
   const { state } = useSidebar()
-  const { mutate } = useBookmarkUpdate()
+  const { mutate } = useConversationUpdate()
   const [optionsOpen, setOptionsOpen] = useState(false)
-
+  const [editMode, setEditMode] = useState(false)
   const handleToggleBookmark = (event: React.MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
 
     mutate({
       conversationId: conversation.id,
-      isBookmarked: !conversation.is_bookmarked,
+      patch: { is_bookmarked: !conversation.is_bookmarked },
     })
   }
+
+  const handleChangeTitle = (title: string) => {
+    const trimmedTitle = title.trim()
+
+    if (trimmedTitle.length > 0) {
+      mutate({ conversationId: conversation.id, patch: { title: trimmedTitle } })
+    }
+  }
+
+  if (editMode) return <ConversationTitleEditMode handleChangeTitle={handleChangeTitle} setEditMode={setEditMode} conversationTitle={conversation.title} />
 
   return (
     <SidebarMenuItem className="shrink-0">
@@ -48,7 +60,7 @@ const ConversationItem = ({ conversation }: ConversationItemProps) => {
           {conversation.is_bookmarked ? <PinOff /> : <Pin />}
         </SidebarMenuAction>
 
-        <ConversationItemActions conversationId={conversation.id} optionsOpen={optionsOpen} setOptionsOpen={setOptionsOpen} />
+        <ConversationItemActions conversationId={conversation.id} optionsOpen={optionsOpen} setOptionsOpen={setOptionsOpen} setEditMode={setEditMode} />
       </div>
     </SidebarMenuItem>
   )
