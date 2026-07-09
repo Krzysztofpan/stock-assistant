@@ -10,7 +10,7 @@ type ConversationItemActionsProps = {
   conversationId: string
   is_bookmarked: boolean
   optionsOpen: boolean
-  handleToggleBookmark: () => void
+  handleToggleBookmark: (event: React.MouseEvent) => void
   setOptionsOpen: Dispatch<SetStateAction<boolean>>
   setEditMode: Dispatch<SetStateAction<boolean>>
 }

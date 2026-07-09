@@ -20,9 +20,7 @@ class ConversationSession:
         self._tokenizer = tokenizer
 
     async def ensure_exists(self) -> None:
-        conversation = await self._conversation.ensure_owned_by_user()
-        if conversation is None:
-            await self._conversation.create_conversation()
+        await self._conversation.ensure_exists()
 
     async def add_message(self, role: str, text: str) -> MessageItem:
         message = await Message.create(text=text, role=MessageRole(role), conversation_id=self.conversation_id)

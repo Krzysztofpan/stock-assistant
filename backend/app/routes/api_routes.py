@@ -25,6 +25,14 @@ settings = get_settings()
 
 access_token_payload = Annotated[TokenPayload, Depends(auth_service.verify_access_token)]
 
+async def _create_conversation_title(
+    conversation_id: str,
+    user_id: str,
+    first_message: str,
+) -> None:
+    service = await ConversationService.open(conversation_id, user_id)
+    await service.create_conversation_title(first_message)
+
 api_router.include_router(conversation_router)
 
 @api_router.post("/chat/stream")
@@ -69,12 +77,10 @@ async def chat_stream(
         )
 
         if body.new_conversation:
-            conversation_service = ConversationService(
+            background_tasks.add_task(
+                _create_conversation_title,
                 body.conversation_id,
                 access_token_payload.sub,
-            )
-            background_tasks.add_task(
-                conversation_service.create_conversation_title,
                 body.message,
             )
 
@@ -86,8 +92,6 @@ async def chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
-
-
 
 @api_router.get(
     "/me",

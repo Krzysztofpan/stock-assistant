@@ -45,7 +45,13 @@ const ConversationItem = ({ conversation }: ConversationItemProps) => {
     }
   }
 
-  if (editMode) return <ConversationTitleEditMode handleChangeTitle={handleChangeTitle} setEditMode={setEditMode} conversationTitle={conversation.title} />
+  if (editMode) return (
+    <ConversationTitleEditMode
+      handleChangeTitle={handleChangeTitle}
+      setEditMode={setEditMode}
+      conversationTitle={conversation.title}
+    />
+  )
 
   return (
     <SidebarMenuItem className="shrink-0">
@@ -60,7 +66,14 @@ const ConversationItem = ({ conversation }: ConversationItemProps) => {
           {conversation.is_bookmarked ? <PinOff /> : <Pin />}
         </SidebarMenuAction>
 
-        <ConversationItemActions conversationId={conversation.id} is_bookmarked={conversation.is_bookmarked} handleToggleBookmark={handleToggleBookmark} optionsOpen={optionsOpen} setOptionsOpen={setOptionsOpen} setEditMode={setEditMode} />
+        <ConversationItemActions
+          conversationId={conversation.id}
+          is_bookmarked={conversation.is_bookmarked}
+          handleToggleBookmark={handleToggleBookmark}
+          optionsOpen={optionsOpen}
+          setOptionsOpen={setOptionsOpen}
+          setEditMode={setEditMode}
+        />
       </div>
     </SidebarMenuItem>
   )
