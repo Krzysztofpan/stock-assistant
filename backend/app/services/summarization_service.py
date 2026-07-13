@@ -1,9 +1,11 @@
+from collections.abc import Callable
 from typing import List
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
+from app.memory.message_buffer import MessageBuffer
 from app.memory.summary_cache import SummaryCache
 from app.errors.exceptions import AppError
 from app.errors.mapping import classify_exception
@@ -15,9 +17,17 @@ settings = get_settings()
 
 
 class SummarizationService:
-    def __init__(self, conversation_id, summary_cache: SummaryCache | None = None):
+    def __init__(
+        self,
+        conversation_id,
+        summary_cache: SummaryCache | None = None,
+        message_buffer: MessageBuffer | None = None,
+        mask_for_llm: Callable[[str], str] | None = None,
+    ):
         self.conversation_id = conversation_id
         self.summary_cache = summary_cache
+        self.message_buffer = message_buffer
+        self._mask_for_llm = mask_for_llm or (lambda text: text)
 
     async def upsert_summary(self) -> None:
         conversation = await Conversation.get(id=self.conversation_id)
@@ -40,11 +50,13 @@ class SummarizationService:
             last_messages,
         )
 
+        last_message_id = last_messages[-1].id
+
         await ConversationSummary.update_or_create(
             conversation_id=self.conversation_id,
             defaults={
                 "summary": new_summary,
-                "last_message_id": last_messages[-1].id,
+                "last_message_id": last_message_id,
                 "summary_level": existing_summary.summary_level + 1 if existing_summary else 1,
             },
         )
@@ -53,7 +65,13 @@ class SummarizationService:
             await self.summary_cache.set(
                 self.conversation_id,
                 new_summary,
-                last_messages[-1].id,
+                last_message_id,
+            )
+
+        if self.message_buffer:
+            await self.message_buffer.trim_messages_up_to(
+                self.conversation_id,
+                last_message_id,
             )
 
     def _is_summarization_needed(
@@ -76,10 +94,14 @@ class SummarizationService:
 
         based on this create new summary with all context existing in summary and new messages combine this and return new summary.
         """
-        converted_last_messages = "\n\n".join(
-            f"{message.role.value}: {message.text}" for message in last_messages
+        masked_existing_summary = (
+            self._mask_for_llm(existing_summary) if existing_summary else None
         )
-         
+        converted_last_messages = "\n\n".join(
+            f"{message.role.value}: {self._mask_for_llm(message.text)}"
+            for message in last_messages
+        )
+
         prompt = ChatPromptTemplate.from_template(template)
 
         llm_for_create_summary = ChatOpenAI(model=settings.llm_model, temperature=0.5)
@@ -87,7 +109,12 @@ class SummarizationService:
         chain = prompt | llm_for_create_summary
 
         try:
-            new_summary = await chain.ainvoke({"summary": existing_summary, "last_messages": converted_last_messages}) 
+            new_summary = await chain.ainvoke(
+                {
+                    "summary": masked_existing_summary,
+                    "last_messages": converted_last_messages,
+                }
+            )
         except Exception as e:
             classified = classify_exception(e, context="create_summary")
             raise AppError(
@@ -95,7 +122,5 @@ class SummarizationService:
                 status_code=classified.detail.status_code,
                 user_message=classified.user_message,
             ) from e
-        
+
         return new_summary.content
-
-

@@ -10,9 +10,12 @@ from redis.asyncio import Redis
 from app.config import get_settings
 from app.memory.redis_client import redis as app_redis
 from app.memory.conversation_memory import ConversationMemory
+from app.memory.message_buffer import MessageBuffer
 from app.core.security.security_pipeline import SecurityPipeline
 from app.dependencies import get_chat_service
+from app.models.routing import SafetyVerdict
 from app.services.chat_service import ChatService
+from app.services.injection_gate_service import InjectionGateService
 from app.tortoise.config import close_db, init_db
 from app.tortoise.models.users import User
 from app.utils.tokenizer import Tokenizer
@@ -61,13 +64,23 @@ async def client():
     mock_stock_assistant = AsyncMock()
     mock_stock_assistant.ask_stream = _mock_ask_stream
 
+    mock_injection_gate = AsyncMock(spec=InjectionGateService)
+    mock_injection_gate.check_safety = AsyncMock(
+        return_value=SafetyVerdict(is_safe=True, confidence=0.0),
+    )
+
     from app.app import app
 
+    security = SecurityPipeline()
     chat_service = ChatService(
-        security=SecurityPipeline(),
-        memory=ConversationMemory(app_redis),
+        security=security,
+        memory=ConversationMemory(
+            app_redis,
+            MessageBuffer(app_redis, security.mask_for_llm),
+        ),
         stock_assistant=mock_stock_assistant,
         tokenizer=Tokenizer(settings.llm_model),
+        injection_gate=mock_injection_gate,
     )
     app.dependency_overrides[get_chat_service] = lambda: chat_service
 

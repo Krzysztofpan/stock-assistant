@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
+from app.core.security.PII_detector import get_pii_detector
 from app.events.conversation_event_bus import conversation_event_bus
 from app.errors.exceptions import AppError
 from app.errors.mapping import classify_exception
@@ -70,13 +71,14 @@ class ConversationService:
 
     async def create_conversation_title(self, first_message: str):
         try:
+            safe_message = get_pii_detector().mask(first_message)
             llm = ChatOpenAI(model=settings.cheap_llm_model, temperature=0.5)
             prompt = f"""
             Based on first user question, create conversation title based on first user question, use only few words, remember that you are in the
             finance context, so don't change english business name to other country word for example Apple. 
             Rember to generate title in the same language as user input
             
-            question: {first_message}
+            question: {safe_message}
             """
             res = await llm.ainvoke(prompt)
             self.conversation.title = res.content

@@ -10,7 +10,11 @@ class ConversationEventBus:
 
         try:
             while True:
-                event = await queue.get()
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    yield None
+                    continue
                 yield event
         finally: 
             self.queues_by_user[user_id].discard(queue)
