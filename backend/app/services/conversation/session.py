@@ -22,9 +22,20 @@ class ConversationSession:
     async def ensure_exists(self) -> None:
         await self._conversation.ensure_exists()
 
-    async def add_message(self, role: str, text: str) -> MessageItem:
+    async def add_message(
+        self,
+        role: str,
+        text: str,
+        *,
+        llm_text: str | None = None,
+    ) -> MessageItem:
         message = await Message.create(text=text, role=MessageRole(role), conversation_id=self.conversation_id)
-        await self._memory.append_message(self.conversation_id, role, text=text)
+        await self._memory.append_message(
+            self.conversation_id,
+            role,
+            llm_text if llm_text is not None else text,
+            message_id=message.id,
+        )
         await self._conversation.update_conversation_window_size(
             self._tokenizer.get_tokens_sum(text)
         )

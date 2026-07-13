@@ -1,5 +1,6 @@
-import re 
-from app.core.security.PII_detector import PIIDetector
+import re
+
+from app.core.security.PII_detector import get_pii_detector
 
 class OutputValidator:
     """
@@ -14,7 +15,7 @@ class OutputValidator:
     ]
 
     def __init__(self):
-        self.pii_detector = PIIDetector()
+        self.pii_detector = get_pii_detector()
     
     def validate(self, output: str) -> tuple[str, list[str]]:
         """

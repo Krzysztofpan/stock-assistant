@@ -87,7 +87,12 @@ class Settings(BaseSettings):
     uvicorn_host: str = "0.0.0.0"
     frontend_port: int = 3000
 
+    injection_model: str = "RyanStudio/Mezzo-Prompt-Guard-v2-Base" 
+    injection_threshold: float = 0.75  
+    injection_max_length: int = 256 
 
+    hf_token: str
+    
     # prompts
     system_prompt: str = SYSTEM_PROMPT
     router_prompt: str = ROUTER_PROMPT

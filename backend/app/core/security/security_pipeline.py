@@ -1,9 +1,16 @@
-import re 
-from app.core.security.PII_detector import PIIDetector
+from functools import lru_cache
 
 from langsmith import traceable
+
+from app.core.security.PII_detector import get_pii_detector
 from app.core.security.input_sanitizer import InputSanitizer
 from app.core.security.output_validator import OutputValidator
+
+
+@lru_cache
+def get_security_pipeline() -> "SecurityPipeline":
+    return SecurityPipeline()
+
 
 class SecurityPipeline:
     """
@@ -12,8 +19,8 @@ class SecurityPipeline:
     """
 
     def __init__(self):
-        self.sanitizer  = InputSanitizer()
-        self.pii_detector = PIIDetector()
+        self.sanitizer = InputSanitizer()
+        self.pii_detector = get_pii_detector()
         self.output_validator = OutputValidator()
 
     @traceable(name="security_check_input")
@@ -39,6 +46,9 @@ class SecurityPipeline:
 
             return True, cleaned, notes
         return True, cleaned, notes
+
+    def mask_for_llm(self, text: str) -> str:
+        return self.pii_detector.mask(text)
 
     @traceable(name="security_check_output")
     def check_output(self, text: str) -> tuple[str, list[str]]:

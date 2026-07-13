@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from app.tortoise.config import close_db, init_db
@@ -8,20 +9,14 @@ from app.routes.auth_routes import auth_router
 from app.routes.healthy_check import health_router
 from app.config import get_settings
 from app.errors.handlers import register_exception_handlers
-from app.dependencies import init_chat_service, reset_chat_service
-from app.services.chat_service import ChatService
-from app.services.stock_assistant import create_stock_assistant
-from app.core.security.security_pipeline import SecurityPipeline
-from app.memory.conversation_memory import ConversationMemory
+from app.container import reset_container, warmup_heavy_services
 from app.memory.redis_client import redis
-from app.utils.tokenizer import Tokenizer
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.security.rate_limit import limiter
-
 settings = get_settings()
 logging.basicConfig(level=settings.log_level)
 
@@ -29,18 +24,19 @@ logging.basicConfig(level=settings.log_level)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    init_chat_service(
-        ChatService(
-            security=SecurityPipeline(),
-            memory=ConversationMemory(redis),
-            stock_assistant=await create_stock_assistant(),
-            tokenizer=Tokenizer(settings.llm_model),
-        )
-    )
+
+    warmup_task = None
+    if settings.app_env == "development":
+        warmup_task = asyncio.create_task(warmup_heavy_services())
+
     try:
         yield
     finally:
-        reset_chat_service()
+        if warmup_task is not None:
+            warmup_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await warmup_task
+        reset_container()
         await close_db()
         await redis.aclose()
 

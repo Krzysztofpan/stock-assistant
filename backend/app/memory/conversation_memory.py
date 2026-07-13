@@ -7,17 +7,24 @@ from app.models.chat_message import ChatMessage
 
 
 class ConversationMemory:
-    def __init__(self, redis: Redis):
-        self.messages = MessageBuffer(redis)
+    def __init__(self, redis: Redis, message_buffer: MessageBuffer):
+        self.messages = message_buffer
         self.summary = SummaryCache(redis)
 
     async def append_message(
         self,
         conversation_id: str,
         role: str,
-        text: str,
+        llm_text: str,
+        *,
+        message_id: int,
     ) -> None:
-        await self.messages.append_message(conversation_id, role, text)
+        await self.messages.append_message(
+            conversation_id,
+            role,
+            llm_text,
+            message_id=message_id,
+        )
 
     async def get_recent_messages(self, conversation_id: str) -> list[ChatMessage]:
         return await self.messages.get_recent_messages(conversation_id)

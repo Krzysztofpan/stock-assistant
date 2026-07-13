@@ -1,12 +1,11 @@
+import json
 import uuid
 
 import pytest
-from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.security.PII_detector import PIIDetector
 from app.memory.conversation_memory import ConversationMemory
 from app.memory.message_buffer import MessageBuffer
-from app.memory.summary_cache import SummaryCache
 
 
 def _memory(redis_client) -> ConversationMemory:
@@ -15,7 +14,7 @@ def _memory(redis_client) -> ConversationMemory:
 
 
 @pytest.mark.asyncio
-async def test_get_context_without_summary_uses_recent_messages(db, redis_client):
+async def test_get_context_masks_user_email_on_db_rebuild(db, redis_client):
     from app.tortoise.models.conversation import Conversation
     from app.tortoise.models.messages import Message, MessageRole
     from app.tortoise.models.users import User
@@ -33,21 +32,16 @@ async def test_get_context_without_summary_uses_recent_messages(db, redis_client
     await Message.create(
         conversation_id=conversation.id,
         role=MessageRole.USER,
-        text="pierwsze",
-    )
-    await Message.create(
-        conversation_id=conversation.id,
-        role=MessageRole.AI,
-        text="odpowiedź",
+        text="kontakt jan@test.com",
     )
 
     try:
         context = await memory.get_context(str(conversation_id))
 
         assert context.summary is None
-        assert len(context.messages) == 2
-        assert context.messages[0].content == "pierwsze"
-        assert context.messages[1].content == "odpowiedź"
+        assert len(context.messages) == 1
+        assert context.messages[0].content == "kontakt <EMAIL_ADDRESS>"
+        assert "jan@test.com" not in context.messages[0].content
     finally:
         await redis_client.delete(f"conversation:{conversation_id}:buffer")
         await Message.filter(conversation_id=conversation.id).delete()
@@ -56,7 +50,47 @@ async def test_get_context_without_summary_uses_recent_messages(db, redis_client
 
 
 @pytest.mark.asyncio
-async def test_get_context_with_summary_excludes_summarized_messages(db, redis_client):
+async def test_get_context_uses_masked_redis_without_db_remask(db, redis_client):
+    from app.tortoise.models.conversation import Conversation
+    from app.tortoise.models.messages import Message, MessageRole
+    from app.tortoise.models.users import User
+
+    memory = _memory(redis_client)
+    conversation_id = uuid.uuid4()
+    email = f"{conversation_id}@test.local"
+
+    user = await User.create(name="test", email=email, password="secret")
+    conversation = await Conversation.create(
+        id=conversation_id,
+        user_id=user.id,
+        title="test",
+    )
+    message = await Message.create(
+        conversation_id=conversation.id,
+        role=MessageRole.USER,
+        text="kontakt jan@test.com",
+    )
+
+    try:
+        await memory.append_message(
+            str(conversation_id),
+            "user",
+            "kontakt <EMAIL_ADDRESS>",
+            message_id=message.id,
+        )
+
+        context = await memory.get_context(str(conversation_id))
+
+        assert context.messages[0].content == "kontakt <EMAIL_ADDRESS>"
+    finally:
+        await redis_client.delete(f"conversation:{conversation_id}:buffer")
+        await Message.filter(conversation_id=conversation.id).delete()
+        await conversation.delete()
+        await user.delete()
+
+
+@pytest.mark.asyncio
+async def test_get_context_with_summary_uses_redis_summary_and_tail_messages(db, redis_client):
     from app.tortoise.models.conversation import Conversation
     from app.tortoise.models.conversation_summary import ConversationSummary
     from app.tortoise.models.messages import Message, MessageRole
@@ -72,11 +106,6 @@ async def test_get_context_with_summary_excludes_summarized_messages(db, redis_c
         user_id=user.id,
         title="test",
     )
-    old_user = await Message.create(
-        conversation_id=conversation.id,
-        role=MessageRole.USER,
-        text="stare pytanie",
-    )
     old_ai = await Message.create(
         conversation_id=conversation.id,
         role=MessageRole.AI,
@@ -85,31 +114,31 @@ async def test_get_context_with_summary_excludes_summarized_messages(db, redis_c
     new_user = await Message.create(
         conversation_id=conversation.id,
         role=MessageRole.USER,
-        text="nowe pytanie",
+        text="kontakt jan@test.com",
     )
 
-    summary_cache = SummaryCache(redis_client)
-    await summary_cache.set(str(conversation_id), "podsumowanie starej części", old_ai.id)
+    await memory.summary.set(str(conversation_id), "podsumowanie", old_ai.id)
     await ConversationSummary.create(
         conversation_id=conversation.id,
-        summary="podsumowanie starej części",
+        summary="podsumowanie",
         summary_level=1,
         last_message_id=old_ai.id,
+    )
+    await memory.append_message(
+        str(conversation_id),
+        "user",
+        "kontakt <EMAIL_ADDRESS>",
+        message_id=new_user.id,
     )
 
     try:
         context = await memory.get_context(str(conversation_id))
-        chat_messages = context.to_chat_messages()
 
-        assert context.summary == "podsumowanie starej części"
+        assert context.summary == "podsumowanie"
         assert len(context.messages) == 1
-        assert context.messages[0].content == "nowe pytanie"
-        assert isinstance(chat_messages[0], SystemMessage)
-        assert "podsumowanie starej części" in chat_messages[0].content
-        assert isinstance(chat_messages[1], HumanMessage)
-        assert chat_messages[1].content == "nowe pytanie"
+        assert context.messages[0].content == "kontakt <EMAIL_ADDRESS>"
     finally:
-        await summary_cache.delete(str(conversation_id))
+        await memory.summary.delete(str(conversation_id))
         await redis_client.delete(f"conversation:{conversation_id}:buffer")
         await ConversationSummary.filter(conversation_id=conversation.id).delete()
         await Message.filter(conversation_id=conversation.id).delete()

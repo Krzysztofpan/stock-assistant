@@ -3,7 +3,7 @@ from datetime import datetime
 from app.services.conversation import ConversationService
 from typing import Annotated, Optional
 from uuid import UUID
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Query, Depends, Request
 from app.services.auth_service import auth_service
 from app.events.conversation_event_bus import conversation_event_bus
 from app.models.api import (
@@ -56,10 +56,15 @@ async def get_conversations(
 
 @conversation_router.get("/events")
 async def conversation_events(
+    request: Request,
     access_token_payload: access_token_payload,
 ):
     async def stream_events():
         async for event in conversation_event_bus.subscribe(access_token_payload.sub):
+            if await request.is_disconnected():
+                break
+            if event is None:
+                continue
             event_type = event.get("type", "message")
             yield f"event: {event_type}\ndata: {json.dumps(event)}\n\n"
 
