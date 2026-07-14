@@ -10,6 +10,10 @@ class InjectionGateService:
         self._settings = settings or get_settings()
         self._pipeline = None  # lazy
 
+    @property
+    def is_warmed(self) -> bool:
+        return self._pipeline is not None
+
     def _get_pipeline(self):
         if self._pipeline is None:
             self._pipeline = pipeline(
@@ -17,6 +21,9 @@ class InjectionGateService:
                 model=self._settings.injection_model,
             )
         return self._pipeline
+
+    def warmup(self) -> None:
+        self._get_pipeline()
 
     def _extract_scores(self, results: list) -> dict[str, float]:
         if not results:

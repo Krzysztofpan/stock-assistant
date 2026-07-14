@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     model_config = {"env_file": str(ENV_FILE), "extra": "ignore"}
 
     database_url: str
-
+    frontend_url: str = "http://localhost:3000" 
     redis_port: str
     redis_host: str
 

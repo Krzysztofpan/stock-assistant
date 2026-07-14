@@ -20,5 +20,7 @@ async def test_health_ready_returns_ok_when_dependencies_available(client: Async
     assert body["version"] == "1.0.0"
     assert body["checks"]["database"]["status"] == "ok"
     assert body["checks"]["redis"]["status"] == "ok"
+    assert body["checks"]["heavy_services"]["status"] == "ok"
     assert isinstance(body["checks"]["database"]["latency_ms"], int)
     assert isinstance(body["checks"]["redis"]["latency_ms"], int)
+    assert isinstance(body["checks"]["heavy_services"]["latency_ms"], int)

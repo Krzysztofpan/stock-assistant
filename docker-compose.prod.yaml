@@ -35,7 +35,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "python -c \"import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ['BACKEND_PORT']}/health/live')\"",
+          "python -c \"import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ['BACKEND_PORT']}/health/ready')\"",
         ]
       interval: 5s
       timeout: 10s
@@ -61,7 +61,7 @@ services:
       redis:
         condition: service_started
       backend:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     
 volumes:

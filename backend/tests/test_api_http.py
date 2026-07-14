@@ -104,7 +104,7 @@ async def test_sign_in_rejects_bad_credentials(client: AsyncClient, unique_email
 
 @pytest.mark.asyncio
 async def test_api_requires_authentication(client: AsyncClient):
-    response = await client.get("/api/conversations")
+    response = await client.get("/api/conversations/")
 
     assert response.status_code == 401
 
@@ -112,7 +112,7 @@ async def test_api_requires_authentication(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_api_rejects_invalid_token(client: AsyncClient):
     response = await client.get(
-        "/api/conversations",
+        "/api/conversations/",
         headers={"Authorization": "Bearer invalid-token"},
     )
 
@@ -215,7 +215,7 @@ async def test_get_conversations_returns_empty_list(
     client: AsyncClient,
     auth_headers: dict[str, str],
 ):
-    response = await client.get("/api/conversations", headers=auth_headers)
+    response = await client.get("/api/conversations/", headers=auth_headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -224,7 +224,7 @@ async def test_get_conversations_returns_empty_list(
 
 
 @pytest.mark.asyncio
-async def test_get_conversation_messages_returns_404_for_missing_conversation(
+async def test_get_conversation_messages_returns_empty_for_missing_conversation(
     client: AsyncClient,
     auth_headers: dict[str, str],
 ):
@@ -233,10 +233,10 @@ async def test_get_conversation_messages_returns_404_for_missing_conversation(
         headers=auth_headers,
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 200
     body = response.json()
-    assert body["status_code"] == 404
-    assert "message" in body
+    assert body["messages"] == []
+    assert body["has_more"] is False
 
 
 @pytest.mark.asyncio

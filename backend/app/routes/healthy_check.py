@@ -3,6 +3,7 @@ import time
 from fastapi import APIRouter, Request, Response
 from tortoise import Tortoise
 
+from app.container import is_heavy_services_warmed
 from app.memory.redis_client import redis
 from app.models.api import CheckResult, HealthyResponse, LiveResponse
 
@@ -19,6 +20,18 @@ async def _check_database() -> CheckResult:
     except Exception as exc:
         latency_ms = int((time.perf_counter() - start) * 1000)
         return CheckResult(status="error", latency_ms=latency_ms, detail=str(exc))
+
+
+async def _check_heavy_services() -> CheckResult:
+    start = time.perf_counter()
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    if is_heavy_services_warmed():
+        return CheckResult(status="ok", latency_ms=latency_ms)
+    return CheckResult(
+        status="error",
+        latency_ms=latency_ms,
+        detail="Heavy services not warmed",
+    )
 
 
 async def _check_redis() -> CheckResult:
@@ -42,6 +55,7 @@ async def health_ready(request: Request, response: Response) -> HealthyResponse:
     checks = {
         "database": await _check_database(),
         "redis": await _check_redis(),
+        "heavy_services": await _check_heavy_services(),
     }
     all_ok = all(check.status == "ok" for check in checks.values())
     if not all_ok:
