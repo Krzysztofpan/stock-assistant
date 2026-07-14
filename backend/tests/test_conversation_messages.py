@@ -3,7 +3,6 @@ import uuid
 import pytest
 
 from app.services.conversation import list_messages
-from app.errors.exceptions import AppError
 
 
 @pytest.mark.asyncio
@@ -134,7 +133,7 @@ async def test_get_messages_returns_empty_for_new_conversation(db):
 
 
 @pytest.mark.asyncio
-async def test_get_messages_raises_when_conversation_not_found(db):
+async def test_get_messages_returns_empty_when_conversation_not_found(db):
     from app.tortoise.models.users import User
 
     user = await User.create(
@@ -144,16 +143,16 @@ async def test_get_messages_raises_when_conversation_not_found(db):
     )
 
     try:
-        with pytest.raises(AppError) as exc_info:
-            await list_messages(str(uuid.uuid4()), str(user.id))
+        result = await list_messages(str(uuid.uuid4()), str(user.id))
 
-        assert exc_info.value.status_code == 404
+        assert result.messages == []
+        assert result.has_more is False
     finally:
         await user.delete()
 
 
 @pytest.mark.asyncio
-async def test_get_messages_raises_for_wrong_user(db):
+async def test_get_messages_returns_empty_for_wrong_user(db):
     from app.tortoise.models.conversation import Conversation
     from app.tortoise.models.users import User
 
@@ -176,13 +175,13 @@ async def test_get_messages_raises_for_wrong_user(db):
     )
 
     try:
-        with pytest.raises(AppError) as exc_info:
-            await list_messages(
-                str(conversation_id),
-                str(other_user.id),
-            )
+        result = await list_messages(
+            str(conversation_id),
+            str(other_user.id),
+        )
 
-        assert exc_info.value.status_code == 404
+        assert result.messages == []
+        assert result.has_more is False
     finally:
         await conversation.delete()
         await owner.delete()

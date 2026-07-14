@@ -19,6 +19,7 @@ settings = get_settings()
 _stock_assistant: StockAssistant | None = None
 _stock_assistant_lock = asyncio.Lock()
 _chat_service: ChatService | None = None
+_heavy_services_warmed: bool = False
 
 
 @lru_cache
@@ -74,21 +75,40 @@ def get_chat_service() -> ChatService:
     return _chat_service
 
 
-async def warmup_heavy_services() -> None:
+def _warmup_injection_gate() -> None:
+    get_injection_gate().warmup()
+
+
+def is_heavy_services_warmed() -> bool:
+    return _heavy_services_warmed
+
+
+def mark_heavy_services_warmed() -> None:
+    global _heavy_services_warmed
+    _heavy_services_warmed = True
+
+
+async def warmup_heavy_services(*, fail_fast: bool = False) -> None:
+    global _heavy_services_warmed
     try:
         await asyncio.gather(
             asyncio.to_thread(get_security_pipeline),
+            asyncio.to_thread(_warmup_injection_gate),
             get_stock_assistant(),
         )
-        logger.info("Background warmup complete")
+        _heavy_services_warmed = True
+        logger.info("Heavy services warmup complete")
     except Exception:
-        logger.exception("Background warmup failed")
+        logger.exception("Heavy services warmup failed")
+        if fail_fast:
+            raise
 
 
 def reset_container() -> None:
-    global _chat_service, _stock_assistant
+    global _chat_service, _stock_assistant, _heavy_services_warmed
     _chat_service = None
     _stock_assistant = None
+    _heavy_services_warmed = False
     get_injection_gate.cache_clear()
     get_tokenizer.cache_clear()
     get_security_pipeline.cache_clear()

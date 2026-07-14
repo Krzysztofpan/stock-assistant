@@ -8,7 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from redis.asyncio import Redis
 
 from app.config import get_settings
-from app.memory.redis_client import redis as app_redis
+import app.memory.redis_client as redis_module
 from app.memory.conversation_memory import ConversationMemory
 from app.memory.message_buffer import MessageBuffer
 from app.core.security.security_pipeline import SecurityPipeline
@@ -30,13 +30,17 @@ async def _mock_ask_stream(_messages) -> AsyncIterator[dict]:
 
 
 def _recreate_redis() -> None:
-    import app.memory.redis_client as redis_module
-
-    redis_module.redis = Redis(
+    client = Redis(
         host=settings.redis_host,
         port=int(settings.redis_port),
         decode_responses=True,
     )
+    redis_module.redis = client
+
+    # Modules import `redis` by value; refresh after lifespan closes the client.
+    import app.routes.healthy_check as health_module
+
+    health_module.redis = client
 
 
 @pytest_asyncio.fixture
@@ -59,6 +63,7 @@ async def redis_client():
 
 @pytest_asyncio.fixture
 async def client():
+    _recreate_redis()
     await init_db()
 
     mock_stock_assistant = AsyncMock()
@@ -69,14 +74,15 @@ async def client():
         return_value=SafetyVerdict(is_safe=True, confidence=0.0),
     )
 
+    from app.container import mark_heavy_services_warmed
     from app.app import app
 
     security = SecurityPipeline()
     chat_service = ChatService(
         security=security,
         memory=ConversationMemory(
-            app_redis,
-            MessageBuffer(app_redis, security.mask_for_llm),
+            redis_module.redis,
+            MessageBuffer(redis_module.redis, security.mask_for_llm),
         ),
         stock_assistant=mock_stock_assistant,
         tokenizer=Tokenizer(settings.llm_model),
@@ -86,6 +92,7 @@ async def client():
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        mark_heavy_services_warmed()
         yield ac
 
     app.dependency_overrides.clear()

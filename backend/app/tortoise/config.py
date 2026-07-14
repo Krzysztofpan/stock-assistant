@@ -14,13 +14,22 @@ def normalize_db_url(url: str) -> str:
     return url
 
 
+TORTOISE_ORM = {
+    "connections": {
+        "default": normalize_db_url(settings.database_url),
+    },
+    "apps": {
+        "models": {
+            "models": ["app.tortoise.models", "aerich.models"],
+            "default_connection": "default",
+        }
+    },
+}
+
+
 async def init_db():
-    await Tortoise.init(
-        db_url=normalize_db_url(settings.database_url),
-        modules={"models": ["app.tortoise.models"]},
-    )
+    await Tortoise.init(config=TORTOISE_ORM)
 
 
 async def close_db():
     await Tortoise.close_connections()
-

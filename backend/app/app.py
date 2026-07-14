@@ -26,9 +26,11 @@ async def lifespan(app: FastAPI):
     await init_db()
 
     warmup_task = None
-    if settings.app_env == "development":
+    if settings.is_production:
+        await warmup_heavy_services(fail_fast=True)
+    else:
         warmup_task = asyncio.create_task(warmup_heavy_services())
-
+        
     try:
         yield
     finally:
@@ -48,9 +50,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-origins = [
-    f"http://localhost:{settings.frontend_port}",
-]
+origins = [settings.frontend_url.rstrip("/")]
+if settings.app_env == "development":
+    origins.append(f"http://localhost:{settings.frontend_port}")
 
 app.add_middleware(
     CORSMiddleware,
