@@ -34,10 +34,10 @@ SYSTEM_PROMPT = """
     that this is outside your scope. If you do not know the answer to a question, say that you do not have data on that topic.
 """
 
-Topics = Literal["price", "news", "fundamentals", "history", "analysis", "not related"]
+Topics = Literal["price", "news", "fundamentals", "history", "analysis","incomprehensible", "not related"]
 
 SUPPORTED_TOPICS: tuple[Topics, ...] = (
-    "price", "news", "fundamentals", "history", "analysis", "not related",
+    "price", "news", "fundamentals", "history", "analysis", "not related", "incomprehensible",
 )
 
 TOPIC_PRIORITY: tuple[Topics, ...] = (
@@ -50,6 +50,7 @@ ROUTER_PROMPT = f"""
     be related with financial context.
     topics you can select (you can select a few topics): 
     {SUPPORTED_TOPICS},
+    if question is incomprehensible return as a topic "incomprehensible".
     if question is not related with any of topic return as a topic "not related".
     Rember that below you have provided context window, so you have to consider it when selecting topics,
     so u select topics for answer for the newest question not for all questions in context window.

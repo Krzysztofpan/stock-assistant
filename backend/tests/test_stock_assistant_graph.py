@@ -5,7 +5,11 @@ from langchain.messages import AIMessage, HumanMessage
 from langchain_core.messages import AIMessageChunk
 
 from app.agents.tool_metrics import ToolMetricsCallback
-from app.graphs.stock_assistant_graph import OUT_OF_SCOPE_MESSAGE, StockAssistantGraph
+from app.graphs.stock_assistant_graph import (
+    INCOMPREHENSIBLE_MESSAGE,
+    OUT_OF_SCOPE_MESSAGE,
+    StockAssistantGraph,
+)
 from app.services.llm_router_service import RouterOutput
 from app.services.stock_assistant import StockAssistant
 
@@ -91,6 +95,37 @@ async def test_get_info_passes_selected_sources_to_agent(graph, mock_agent, mock
         isinstance(handler, ToolMetricsCallback)
         for handler in kwargs["config"]["callbacks"].handlers
     )
+
+
+@pytest.mark.asyncio
+async def test_incomprehensible_skips_agent(graph, mock_agent, mock_llm_router):
+    mock_llm_router.ainvoke.return_value = RouterOutput(topics=["incomprehensible"])
+
+    result = await graph.ainvoke({
+        "messages": [HumanMessage("dwadwadgsgaew")],
+        "retry_count": 0,
+        "topics": [],
+        "sources": [],
+    })
+
+    mock_llm_router.ainvoke.assert_awaited_once()
+    mock_agent.astream.assert_not_called()
+    assert result["messages"][-1].content == INCOMPREHENSIBLE_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_ask_stream_returns_incomprehensible_response(mock_agent, mock_llm_router):
+    mock_llm_router.ainvoke.return_value = RouterOutput(topics=["incomprehensible"])
+    assistant = StockAssistant(StockAssistantGraph(mock_agent, mock_llm_router))
+
+    events = [
+        event
+        async for event in assistant.ask_stream([HumanMessage("dwadwadgsgaew")])
+    ]
+
+    assert [event for event in events if event["type"] == "token"] == [
+        {"type": "token", "delta": INCOMPREHENSIBLE_MESSAGE},
+    ]
 
 
 @pytest.mark.asyncio
