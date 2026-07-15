@@ -7,7 +7,7 @@ from app.services.llm_router_service import llm_router
 from langchain_core.messages import BaseMessage
 
 settings = get_settings()
-RESPONSE_NODES = ("handle_out_of_scope", "handle_error_response")
+RESPONSE_NODES = ("handle_out_of_scope", "handle_incomprehensible", "handle_error_response")
 
 
 class StockAssistant:

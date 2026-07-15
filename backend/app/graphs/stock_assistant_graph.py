@@ -25,6 +25,12 @@ OUT_OF_SCOPE_MESSAGE = (
     "and publicly traded companies."
 )
 
+INCOMPREHENSIBLE_MESSAGE = (
+    "I don't understand what do you mean, "
+    "could you please rephrase your question?"
+)
+
+
 PROCESS_STEP_LABELS = {
     "select_topics": "Selecting topics",
     "choose_sources": "Choosing sources",
@@ -60,6 +66,7 @@ class StockAssistantGraph:
         graph.add_node("choose_sources", self.choose_sources)
         graph.add_node("get_info", self.get_info)
         graph.add_node("handle_out_of_scope", self.handle_out_of_scope)
+        graph.add_node("handle_incomprehensible", self.handle_incomprehensible)
         graph.add_node("handle_error_response", self.handle_error_response)
 
         graph.set_entry_point("select_topics")
@@ -69,10 +76,12 @@ class StockAssistantGraph:
             "out_of_scope": "handle_out_of_scope",
             "select_topics": "select_topics",
             "error": "handle_error_response",
+            "incomprehensible": "handle_incomprehensible",
         })
 
         graph.add_edge("choose_sources", "get_info")
         graph.add_edge("handle_out_of_scope", END)
+        graph.add_edge("handle_incomprehensible", END)
 
         graph.add_conditional_edges("get_info", self.route_after_get_info, {
             "done": END,
@@ -105,6 +114,9 @@ class StockAssistantGraph:
 
     def _is_out_of_scope(self, topics: list[Topics]) -> bool:
         return topics == ["not related"]
+
+    def _is_incomprehensible(self, topics: list[Topics]) -> bool:
+        return topics == ["incomprehensible"]
 
     async def select_topics(self, state: StockAssistantState):
         _emit_process_step("select_topics")
@@ -188,6 +200,11 @@ class StockAssistantGraph:
             "messages": AIMessage(OUT_OF_SCOPE_MESSAGE),
         }
 
+    def handle_incomprehensible(self, state: StockAssistantState):
+        return {
+            "messages": AIMessage(INCOMPREHENSIBLE_MESSAGE),
+        }
+
     def handle_error_response(self, state: StockAssistantState):
         return {
             "messages": SystemMessage(state["error_message"]),
@@ -200,6 +217,8 @@ class StockAssistantGraph:
             return "error"
         if self._is_out_of_scope(state.get("topics", [])):
             return "out_of_scope"
+        if self._is_incomprehensible(state.get("topics", [])):
+            return "incomprehensible"
         return "choose_sources"
 
     def route_after_get_info(self, state: StockAssistantState):

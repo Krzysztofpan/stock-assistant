@@ -19,5 +19,6 @@ RouterLLM = Runnable[LanguageModelInput, RouterOutput]
 llm_router: RouterLLM = ChatOpenAI(
     model=settings.cheap_llm_model,
     temperature=settings.llm_temperature,
-    
+    reasoning_effort="minimal",
+    verbosity="low",
 ).with_structured_output(RouterOutput)

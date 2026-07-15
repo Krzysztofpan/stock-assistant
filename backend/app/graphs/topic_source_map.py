@@ -8,6 +8,7 @@ TOPIC_SOURCE_MAP: dict[Topics, tuple[SourceName, ...]] = {
     "history": ("eodhd",),
     "analysis": ("yfinance", "finnhub", "eodhd"),
     "not related": (),
+    "incomprehensible": (),
 }
 
 SOURCE_PRIORITY: tuple[SourceName, ...] = ("yfinance", "finnhub", "eodhd")
