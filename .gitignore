@@ -1,5 +1,7 @@
 .env
 deploy/oci-retry.env
 deploy/oci-retry.log
+deploy/oci-retry-a1.sh
+.cursor
 actual_task*
 .vscode
