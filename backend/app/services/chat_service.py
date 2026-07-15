@@ -55,7 +55,6 @@ class ChatService:
             memory=self.memory,
             tokenizer=self.tokenizer,
         )
-        await session.ensure_exists()
 
         safety, _ = await asyncio.gather(
             self.injection_gate.check_safety(cleaned_message),
