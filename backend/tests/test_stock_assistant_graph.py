@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 from langchain.messages import AIMessage, HumanMessage
 
+from app.agents.tool_metrics import ToolMetricsCallback
 from app.graphs.stock_assistant_graph import OUT_OF_SCOPE_MESSAGE, StockAssistantGraph
 from app.services.llm_router_service import RouterOutput
 from app.services.stock_assistant import StockAssistant
@@ -72,6 +73,10 @@ async def test_get_info_passes_selected_sources_to_agent(graph, mock_agent, mock
 
     _state, kwargs = mock_agent.ainvoke.await_args
     assert kwargs["context"].selected_sources == ["finnhub"]
+    assert any(
+        isinstance(handler, ToolMetricsCallback)
+        for handler in kwargs["config"]["callbacks"].handlers
+    )
 
 
 @pytest.mark.asyncio

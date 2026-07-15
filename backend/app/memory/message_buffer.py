@@ -37,9 +37,11 @@ class MessageBuffer:
 
         key = self._buffer_key(conversation_id)
 
-        await self.redis.rpush(key, json.dumps(payload))
-        await self.redis.ltrim(key, -self.BUFFER_SIZE, -1)
-        await self.redis.expire(key, self.TTL_SECONDS)
+        pipe = self.redis.pipeline()
+        pipe.rpush(key, json.dumps(payload))
+        pipe.ltrim(key, -self.BUFFER_SIZE, -1)
+        pipe.expire(key, self.TTL_SECONDS)
+        await pipe.execute()
 
     async def get_recent_messages(self, conversation_id: str) -> list[ChatMessage]:
         key = self._buffer_key(conversation_id)

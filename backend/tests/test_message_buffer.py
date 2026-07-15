@@ -1,10 +1,38 @@
 import json
 import uuid
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
 from app.core.security.PII_detector import PIIDetector
 from app.memory.message_buffer import MessageBuffer
+
+
+@pytest.mark.asyncio
+async def test_append_message_pipelines_redis_commands():
+    redis = MagicMock()
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    redis.pipeline.return_value = pipe
+    buffer = MessageBuffer(redis, lambda text: text)
+
+    await buffer.append_message(
+        "conversation-id",
+        "user",
+        "hello",
+        message_id=1,
+    )
+
+    redis.pipeline.assert_called_once_with()
+    assert pipe.method_calls[:3] == [
+        call.rpush(
+            "conversation:conversation-id:buffer",
+            json.dumps({"id": 1, "role": "user", "text": "hello"}),
+        ),
+        call.ltrim("conversation:conversation-id:buffer", -buffer.BUFFER_SIZE, -1),
+        call.expire("conversation:conversation-id:buffer", buffer.TTL_SECONDS),
+    ]
+    pipe.execute.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio

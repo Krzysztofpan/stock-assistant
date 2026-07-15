@@ -4,9 +4,10 @@ from langgraph.graph.message import add_messages
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.graph import END
-from langgraph.config import get_stream_writer
+from langgraph.config import get_config, get_stream_writer
 from langchain.messages import SystemMessage, AIMessage
 
+from app.agents.tool_metrics import ToolMetricsTrace
 from app.config import get_settings, Topics
 from app.errors.mapping import classify_exception, is_retryable_error
 from app.graphs.topic_source_map import resolve_sources_for_topics
@@ -132,11 +133,13 @@ class StockAssistantGraph:
 
     async def get_info(self, state: StockAssistantState):
         _emit_process_step("get_info")
+        tool_metrics = ToolMetricsTrace(get_config())
 
         try:
             sources = state.get("sources") or []
             agent_res = await self.agent.ainvoke(
                 {"messages": state["messages"]},
+                config=tool_metrics.config,
                 context=AgentContext(selected_sources=sources),
             )
         except Exception as e:
@@ -145,6 +148,8 @@ class StockAssistantGraph:
                 context="get_info",
                 retry_count=state["retry_count"] + 1,
             )
+        finally:
+            tool_metrics.attach_to_current_run()
 
         return {
             "messages": AIMessage(agent_res["messages"][-1].content),
