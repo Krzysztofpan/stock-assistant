@@ -6,6 +6,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.graph import END
 from langgraph.config import get_config, get_stream_writer
 from langchain.messages import SystemMessage, AIMessage
+from langchain_core.messages import AIMessageChunk
 
 from app.agents.tool_metrics import ToolMetricsTrace
 from app.config import get_settings, Topics
@@ -134,14 +135,32 @@ class StockAssistantGraph:
     async def get_info(self, state: StockAssistantState):
         _emit_process_step("get_info")
         tool_metrics = ToolMetricsTrace(get_config())
+        stream_writer = get_stream_writer()
+        agent_state = None
 
         try:
             sources = state.get("sources") or []
-            agent_res = await self.agent.ainvoke(
+            async for mode, chunk in self.agent.astream(
                 {"messages": state["messages"]},
                 config=tool_metrics.config,
                 context=AgentContext(selected_sources=sources),
-            )
+                stream_mode=["messages", "values"],
+            ):
+                if mode == "messages":
+                    msg_chunk, metadata = chunk
+                    if (
+                        metadata.get("langgraph_node") == "model"
+                        and isinstance(msg_chunk, AIMessageChunk)
+                        and msg_chunk.content
+                        and not msg_chunk.tool_call_chunks
+                    ):
+                        stream_writer({
+                            "type": "token",
+                            "delta": msg_chunk.content,
+                        })
+                    continue
+
+                agent_state = chunk
         except Exception as e:
             return self._error_state(
                 e,
@@ -151,8 +170,15 @@ class StockAssistantGraph:
         finally:
             tool_metrics.attach_to_current_run()
 
+        if agent_state is None:
+            return self._error_state(
+                RuntimeError("Agent completed without returning state"),
+                context="get_info",
+                retry_count=state["retry_count"] + 1,
+            )
+
         return {
-            "messages": AIMessage(agent_res["messages"][-1].content),
+            "messages": AIMessage(agent_state["messages"][-1].content),
             "error_message": None,
             "error": None,
         }

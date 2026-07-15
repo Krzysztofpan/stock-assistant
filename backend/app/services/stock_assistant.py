@@ -7,7 +7,7 @@ from app.services.llm_router_service import llm_router
 from langchain_core.messages import BaseMessage
 
 settings = get_settings()
-RESPONSE_NODES = ("get_info", "handle_out_of_scope", "handle_error_response")
+RESPONSE_NODES = ("handle_out_of_scope", "handle_error_response")
 
 
 class StockAssistant:
@@ -25,6 +25,9 @@ class StockAssistant:
             "sources": [],
         }, stream_mode=["messages", "custom", "updates"]):
             if mode == "custom":
+                if chunk.get("type") == "token" and chunk.get("delta"):
+                    yield {"type": "token", "delta": chunk["delta"]}
+                    continue
                 label = chunk.get("label")
                 if label:
                     yield {"type": "status", "label": label}
