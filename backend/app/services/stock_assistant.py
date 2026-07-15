@@ -1,4 +1,3 @@
-from langchain_openai import ChatOpenAI
 from langsmith import traceable
 from app.agents.financial_agent import create_financial_agent
 from app.config import get_settings
@@ -6,10 +5,8 @@ from app.graphs.stock_assistant_graph import StockAssistantGraph
 from app.models.error import ErrorDetail
 from app.services.llm_router_service import llm_router
 from langchain_core.messages import BaseMessage
-from langchain_core.messages import AIMessageChunk
 
 settings = get_settings()
-GENERATE_OUTPUT_NODE = "generate_output"
 RESPONSE_NODES = ("handle_out_of_scope", "handle_error_response")
 
 
@@ -28,6 +25,9 @@ class StockAssistant:
             "sources": [],
         }, stream_mode=["messages", "custom", "updates"]):
             if mode == "custom":
+                if chunk.get("type") == "token" and chunk.get("delta"):
+                    yield {"type": "token", "delta": chunk["delta"]}
+                    continue
                 label = chunk.get("label")
                 if label:
                     yield {"type": "status", "label": label}
@@ -42,10 +42,6 @@ class StockAssistant:
             if mode == "messages":
                 msg_chunk, metadata = chunk
                 node = metadata.get("langgraph_node")
-                if node == GENERATE_OUTPUT_NODE and isinstance(msg_chunk, AIMessageChunk):
-                    if msg_chunk.content:
-                        yield {"type": "token", "delta": msg_chunk.content}
-                    continue
                 if node in RESPONSE_NODES and msg_chunk.content:
                     yield {"type": "token", "delta": msg_chunk.content}
 
@@ -54,7 +50,6 @@ class StockAssistant:
 
 
 async def create_stock_assistant() -> StockAssistant:
-    llm = ChatOpenAI(model=settings.llm_model, temperature=settings.llm_temperature)
     agent, _registry = await create_financial_agent(settings.agent_model, settings.system_prompt)
-    assistant_graph = StockAssistantGraph(agent, llm, llm_router)
+    assistant_graph = StockAssistantGraph(agent, llm_router)
     return StockAssistant(stock_assistant_graph=assistant_graph)

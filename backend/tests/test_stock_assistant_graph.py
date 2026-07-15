@@ -2,24 +2,32 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from langchain.messages import AIMessage, HumanMessage
-from langchain_openai import ChatOpenAI
+from langchain_core.messages import AIMessageChunk
 
+from app.agents.tool_metrics import ToolMetricsCallback
 from app.graphs.stock_assistant_graph import OUT_OF_SCOPE_MESSAGE, StockAssistantGraph
 from app.services.llm_router_service import RouterOutput
+from app.services.stock_assistant import StockAssistant
 
 
 @pytest.fixture
 def mock_agent():
-    agent = AsyncMock()
-    agent.ainvoke.return_value = {"messages": [AIMessage("Agent data")]}
+    agent = MagicMock()
+
+    async def _astream(*args, **kwargs):
+        del args, kwargs
+        yield "messages", (
+            AIMessageChunk(content="Agent "),
+            {"langgraph_node": "model"},
+        )
+        yield "messages", (
+            AIMessageChunk(content="data"),
+            {"langgraph_node": "model"},
+        )
+        yield "values", {"messages": [AIMessage("Agent data")]}
+
+    agent.astream.side_effect = _astream
     return agent
-
-
-@pytest.fixture
-def mock_llm():
-    llm = AsyncMock(spec=ChatOpenAI)
-    llm.ainvoke.return_value = MagicMock(content="Final answer")
-    return llm
 
 
 @pytest.fixture
@@ -30,8 +38,8 @@ def mock_llm_router():
 
 
 @pytest.fixture
-def graph(mock_agent, mock_llm, mock_llm_router):
-    return StockAssistantGraph(mock_agent, mock_llm, mock_llm_router).build_graph()
+def graph(mock_agent, mock_llm_router):
+    return StockAssistantGraph(mock_agent, mock_llm_router).build_graph()
 
 
 @pytest.mark.asyncio
@@ -44,7 +52,7 @@ async def test_out_of_scope_skips_agent(graph, mock_agent, mock_llm_router):
     })
 
     mock_llm_router.ainvoke.assert_awaited_once()
-    mock_agent.ainvoke.assert_not_awaited()
+    mock_agent.astream.assert_not_called()
     assert result["messages"][-1].content == OUT_OF_SCOPE_MESSAGE
 
 
@@ -60,9 +68,10 @@ async def test_price_question_uses_llm_router(graph, mock_agent, mock_llm_router
     })
 
     mock_llm_router.ainvoke.assert_awaited_once()
-    mock_agent.ainvoke.assert_awaited_once()
+    mock_agent.astream.assert_called_once()
     assert result["topics"] == ["price"]
     assert result["sources"] == ["yfinance"]
+    assert result["messages"][-1].content == "Agent data"
 
 
 @pytest.mark.asyncio
@@ -76,5 +85,25 @@ async def test_get_info_passes_selected_sources_to_agent(graph, mock_agent, mock
         "sources": [],
     })
 
-    _state, kwargs = mock_agent.ainvoke.await_args
+    _state, kwargs = mock_agent.astream.call_args
     assert kwargs["context"].selected_sources == ["finnhub"]
+    assert any(
+        isinstance(handler, ToolMetricsCallback)
+        for handler in kwargs["config"]["callbacks"].handlers
+    )
+
+
+@pytest.mark.asyncio
+async def test_ask_stream_returns_agent_response(mock_agent, mock_llm_router):
+    mock_llm_router.ainvoke.return_value = RouterOutput(topics=["price"])
+    assistant = StockAssistant(StockAssistantGraph(mock_agent, mock_llm_router))
+
+    events = [
+        event
+        async for event in assistant.ask_stream([HumanMessage("Jaka cena AAPL?")])
+    ]
+
+    assert [event for event in events if event["type"] == "token"] == [
+        {"type": "token", "delta": "Agent "},
+        {"type": "token", "delta": "data"},
+    ]
