@@ -49,7 +49,9 @@ async def test_out_of_scope_skips_agent(graph, mock_agent, mock_llm_router):
 
 
 @pytest.mark.asyncio
-async def test_price_question_uses_rules_without_llm_router(graph, mock_agent, mock_llm_router):
+async def test_price_question_uses_llm_router(graph, mock_agent, mock_llm_router):
+    mock_llm_router.ainvoke.return_value = RouterOutput(topics=["price"])
+
     result = await graph.ainvoke({
         "messages": [HumanMessage("Jaka cena AAPL?")],
         "retry_count": 0,
@@ -57,14 +59,16 @@ async def test_price_question_uses_rules_without_llm_router(graph, mock_agent, m
         "sources": [],
     })
 
-    mock_llm_router.ainvoke.assert_not_awaited()
+    mock_llm_router.ainvoke.assert_awaited_once()
     mock_agent.ainvoke.assert_awaited_once()
     assert result["topics"] == ["price"]
     assert result["sources"] == ["yfinance"]
 
 
 @pytest.mark.asyncio
-async def test_get_info_passes_selected_sources_to_agent(graph, mock_agent):
+async def test_get_info_passes_selected_sources_to_agent(graph, mock_agent, mock_llm_router):
+    mock_llm_router.ainvoke.return_value = RouterOutput(topics=["news"])
+
     await graph.ainvoke({
         "messages": [HumanMessage("Newsy o TSLA")],
         "retry_count": 0,

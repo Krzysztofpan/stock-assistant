@@ -11,7 +11,6 @@ from langchain.messages import HumanMessage, SystemMessage, AIMessage
 from app.config import get_settings, Topics
 from app.errors.mapping import classify_exception, is_retryable_error
 from app.graphs.topic_source_map import resolve_sources_for_topics
-from app.graphs.intent_router import match_topics_from_rules
 from app.agents.context import AgentContext
 
 if TYPE_CHECKING:
@@ -126,11 +125,6 @@ class StockAssistantGraph:
         _emit_process_step("select_topics")
 
         try:
-            user_question = self._last_user_message(state["messages"]).content
-            rule_topics = match_topics_from_rules(user_question)
-            if rule_topics is not None:
-                return {"topics": rule_topics}
-
             selected_topics = await self.llm_router.ainvoke(f"""
             {settings.router_prompt}
 
