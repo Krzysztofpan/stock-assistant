@@ -5,8 +5,7 @@ from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.graph import END
 from langgraph.config import get_stream_writer
-from langchain_openai import ChatOpenAI
-from langchain.messages import HumanMessage, SystemMessage, AIMessage
+from langchain.messages import SystemMessage, AIMessage
 
 from app.config import get_settings, Topics
 from app.errors.mapping import classify_exception, is_retryable_error
@@ -27,8 +26,7 @@ OUT_OF_SCOPE_MESSAGE = (
 PROCESS_STEP_LABELS = {
     "select_topics": "Selecting topics",
     "choose_sources": "Choosing sources",
-    "get_info": "Calling tools",
-    "generate_output": "Generating answer",
+    "get_info": "Gathering data and generating answer",
 }
 
 
@@ -43,15 +41,13 @@ class StockAssistantState(TypedDict):
     messages: Annotated[List, add_messages]
     retry_count: int
     error_message: Optional[str]
-    agent_response: Optional[str]
     error: Optional[dict]
     topics: list[Topics]
     sources: list[str]
 
 class StockAssistantGraph:
-    def __init__(self, agent: CompiledStateGraph, llm: ChatOpenAI, llm_router: "RouterLLM"):
+    def __init__(self, agent: CompiledStateGraph, llm_router: "RouterLLM"):
         self.agent = agent
-        self.llm = llm
         self.llm_router = llm_router
 
 
@@ -63,7 +59,6 @@ class StockAssistantGraph:
         graph.add_node("get_info", self.get_info)
         graph.add_node("handle_out_of_scope", self.handle_out_of_scope)
         graph.add_node("handle_error_response", self.handle_error_response)
-        graph.add_node("generate_output", self.generate_output)
 
         graph.set_entry_point("select_topics")
 
@@ -78,14 +73,8 @@ class StockAssistantGraph:
         graph.add_edge("handle_out_of_scope", END)
 
         graph.add_conditional_edges("get_info", self.route_after_get_info, {
-            "generate_output": "generate_output",
-            "get_info": "get_info",
-            "error": "handle_error_response",
-        })
-
-        graph.add_conditional_edges("generate_output", self.route_after_generate_output, {
             "done": END,
-            "generate_output": "generate_output",
+            "get_info": "get_info",
             "error": "handle_error_response",
         })
 
@@ -111,12 +100,6 @@ class StockAssistantGraph:
 
     def _should_retry(self, state: StockAssistantState) -> bool:
         return state["retry_count"] <= settings.max_retries
-
-    def _last_user_message(self, messages: list) -> HumanMessage:
-        for message in reversed(messages):
-            if isinstance(message, HumanMessage):
-                return message
-        raise ValueError("No user message found in conversation context")
 
     def _is_out_of_scope(self, topics: list[Topics]) -> bool:
         return topics == ["not related"]
@@ -164,7 +147,7 @@ class StockAssistantGraph:
             )
 
         return {
-            "agent_response": agent_res["messages"][-1].content,
+            "messages": AIMessage(agent_res["messages"][-1].content),
             "error_message": None,
             "error": None,
         }
@@ -179,34 +162,6 @@ class StockAssistantGraph:
             "messages": SystemMessage(state["error_message"]),
         }
 
-    async def generate_output(self, state: StockAssistantState):
-        _emit_process_step("generate_output")
-
-        user_question = self._last_user_message(state["messages"]).content
-        template = f"""
-        Based on context below, answer a user question, answer only on user question, don't add more than expected:
-        {state['agent_response']}
-
-        question: {user_question}
-        """
-
-        prompt = state["messages"] + [HumanMessage(template)]
-
-        try:
-            res = await self.llm.ainvoke(prompt)
-        except Exception as e:
-            return self._error_state(
-                e,
-                context="generate_output",
-                retry_count=state["retry_count"] + 1,
-            )
-
-        return {
-            "messages": AIMessage(res.content),
-            "error_message": None,
-            "error": None,
-        }
-
     def route_after_select_topics(self, state: StockAssistantState):
         if state.get("error_message") is not None:
             if self._should_retry(state):
@@ -218,14 +173,7 @@ class StockAssistantGraph:
 
     def route_after_get_info(self, state: StockAssistantState):
         if state.get("error_message") is None:
-            return "generate_output"
-        if self._should_retry(state):
-            return "get_info"
-        return "error"
-
-    def route_after_generate_output(self, state: StockAssistantState):
-        if state.get("error_message") is None:
             return "done"
         if self._should_retry(state):
-            return "generate_output"
+            return "get_info"
         return "error"

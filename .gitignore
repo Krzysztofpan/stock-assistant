@@ -1,5 +1,5 @@
 .env
 deploy/oci-retry.env
 deploy/oci-retry.log
-actual_task.txt
+actual_task*
 .vscode

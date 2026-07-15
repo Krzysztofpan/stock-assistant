@@ -123,8 +123,6 @@ def user_facing_message(exc: Exception, *, context: str = "") -> str:
     extracted = extract_error(exc)
     if extracted.status_code >= 500 or isinstance(exc, httpx.HTTPStatusError):
         return "The external service is temporarily unavailable. Please try again later."
-    if context == "generate_output":
-        return "Something went wrong while generating the response. Please try again later."
     return "Something went wrong. Please try again later."
 
 
