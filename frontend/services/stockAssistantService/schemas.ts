@@ -17,8 +17,10 @@ export const signUpFormSchema = z
     path: ["passwordRepeat"],
   })
 
+export const MAX_CHAT_MESSAGE_LENGTH = 300
+
 export const chatRequestFormSchema = z.object({
-  message: z.string().trim().min(1, "message must have some text").max(1000, "message can has maximum 1000 characters"),
+  message: z.string().trim().min(1, "message must have some text").max(MAX_CHAT_MESSAGE_LENGTH, `message can have at most ${MAX_CHAT_MESSAGE_LENGTH} characters`),
   conversationId: z.uuid(),
   newConversation: z.boolean().optional(),
 })

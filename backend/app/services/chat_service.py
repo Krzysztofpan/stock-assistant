@@ -3,7 +3,7 @@ from collections.abc import Awaitable, Callable
 
 from app.models.api import ChatRequest
 from app.errors.exceptions import InputBlockedError
-from app.errors.mapping import classify_exception
+from app.errors.mapping import classify_exception, stream_error_data
 from app.memory.conversation_memory import ConversationMemory
 from app.core.security.security_pipeline import SecurityPipeline
 from app.models.error import ErrorDetail
@@ -45,30 +45,31 @@ class ChatService:
         return self._stock_assistant
 
     async def handle_stream(self, request: ChatRequest, user_id: str):
-        is_allowed, cleaned_message, _notes = self.security.check_input(request.message)
-        if not is_allowed:
-            raise InputBlockedError()
-        
-        session = ConversationSession(
-            request.conversation_id,
-            user_id,
-            memory=self.memory,
-            tokenizer=self.tokenizer,
-        )
-
-        safety, _ = await asyncio.gather(
-            self.injection_gate.check_safety(cleaned_message),
-            session.ensure_exists(),
-        )
-        
-        if not safety.is_safe: raise InputBlockedError()
-
-        await session.add_message("user", request.message, llm_text=cleaned_message)
-        context = await session.get_context()
-        accumulated = ""
-        stream_error: ErrorDetail | None = None
-
         try:
+            is_allowed, cleaned_message, _notes = self.security.check_input(request.message)
+            if not is_allowed:
+                raise InputBlockedError()
+
+            session = ConversationSession(
+                request.conversation_id,
+                user_id,
+                memory=self.memory,
+                tokenizer=self.tokenizer,
+            )
+
+            safety, _ = await asyncio.gather(
+                self.injection_gate.check_safety(cleaned_message),
+                session.ensure_exists(),
+            )
+
+            if not safety.is_safe:
+                raise InputBlockedError()
+
+            await session.add_message("user", request.message, llm_text=cleaned_message)
+            context = await session.get_context()
+            accumulated = ""
+            stream_error: ErrorDetail | None = None
+
             stock_assistant = await self._resolve_stock_assistant()
             async for event in stock_assistant.ask_stream(context.to_chat_messages()):
                 if event["type"] == "status":
@@ -91,24 +92,23 @@ class ChatService:
                     "type": "token",
                     "data": {"delta": delta},
                 }
+
+            validated_response, _warnings = self.security.check_output(accumulated)
+            message = await session.add_message("ai", validated_response)
+            yield {
+                "type": "done",
+                "data": {
+                    "message": message.model_dump(mode="json"),
+                    "error": stream_error.model_dump() if stream_error else None,
+                },
+            }
         except Exception as exc:
-            logger.exception("Chat stream failed for conversation %s", request.conversation_id)
-            classified = classify_exception(exc, context="chat_stream")
+            if not isinstance(exc, InputBlockedError):
+                classify_exception(exc, context="chat_stream")
             yield {
                 "type": "error",
-                "data": classified.detail.model_dump(),
+                "data": stream_error_data(exc, context="chat_stream"),
             }
-            return
-
-        validated_response, _warnings = self.security.check_output(accumulated)
-        message = await session.add_message("ai", validated_response)
-        yield {
-            "type": "done",
-            "data": {
-                "message": message.model_dump(mode="json"),
-                "error": stream_error.model_dump() if stream_error else None,
-            },
-        }
 
 
     async def summarize_conversation(self, conversation_id: str) -> None:
