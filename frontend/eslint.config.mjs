@@ -44,6 +44,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "hooks/use-mobile.ts",
+    "components/ui/**",
   ]),
 ])
 
