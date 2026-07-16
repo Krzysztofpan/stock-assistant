@@ -302,6 +302,23 @@ async def test_chat_stream_returns_response(client: AsyncClient, auth_headers: d
         await conversation.delete()
 
 
+@pytest.mark.asyncio
+async def test_chat_stream_rejects_message_over_max_length(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+):
+    response = await client.post(
+        "/api/chat/stream",
+        headers=auth_headers,
+        json={
+            "message": "x" * 301,
+            "conversation_id": str(uuid.uuid4()),
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def _parse_sse_events(text: str) -> list[tuple[str, dict]]:
     events: list[tuple[str, dict]] = []
 

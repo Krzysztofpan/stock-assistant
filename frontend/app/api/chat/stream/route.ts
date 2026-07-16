@@ -1,5 +1,6 @@
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session"
 import { getBackendUrl } from "@/lib/backend-url"
+import { MAX_CHAT_MESSAGE_LENGTH } from "@/services/stockAssistantService/schemas"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
@@ -30,8 +31,17 @@ export async function POST(request: Request) {
   catch {
     return new NextResponse("Invalid JSON body", { status: 400 })
   }
-  if (!body.message?.trim() || !body.conversation_id) {
+  const message = body.message?.trim()
+
+  if (!message || !body.conversation_id) {
     return new NextResponse("message and conversation_id are required", { status: 400 })
+  }
+
+  if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
+    return new NextResponse(
+      `message can have at most ${MAX_CHAT_MESSAGE_LENGTH} characters`,
+      { status: 400 },
+    )
   }
 
   const backendResponse = await fetch(`${getBackendUrl()}/api/chat/stream`, {
@@ -42,7 +52,7 @@ export async function POST(request: Request) {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      message: body.message,
+      message,
       conversation_id: body.conversation_id,
       new_conversation: body.new_conversation ?? false,
     }),

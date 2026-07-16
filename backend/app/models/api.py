@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from typing import Literal, Optional
 from app.models.error import ErrorDetail
 from app.tortoise.models.messages import MessageRole
@@ -13,8 +13,11 @@ class MessageItem(BaseModel):
     text: str
     created_at: datetime
 
+CHAT_MESSAGE_MAX_LENGTH = 300
+
+
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(min_length=1, max_length=CHAT_MESSAGE_MAX_LENGTH)
     conversation_id: str
     new_conversation: bool = False
 

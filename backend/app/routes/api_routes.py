@@ -12,8 +12,6 @@ from app.dependencies import ChatServiceDep
 from app.models.auth import TokenPayload
 from app.core.security.rate_limit import limiter
 from app.routes.conversation_routes import conversation_router
-from app.errors.exceptions import InputBlockedError, AppError
-from app.errors.mapping import classify_exception
 import json
 
 api_router = APIRouter(
@@ -45,31 +43,11 @@ async def chat_stream(
     chat_service: ChatServiceDep,
 ):
     async def event_generator():
-        try:
-            async for event in chat_service.handle_stream(body, user_id=access_token_payload.sub):
-                yield (
-                    f"event: {event['type']}\n"
-                    f"data: {json.dumps(event['data'])}\n\n"
-                )
-        except InputBlockedError as exc:
+        async for event in chat_service.handle_stream(body, user_id=access_token_payload.sub):
             yield (
-                f"event: error\n"
-                f"data: {json.dumps({'message': exc.user_message, 'status_code': exc.status_code})}\n\n"
+                f"event: {event['type']}\n"
+                f"data: {json.dumps(event['data'])}\n\n"
             )
-            return
-        except AppError as exc:
-            yield (
-                f"event: error\n"
-                f"data: {json.dumps({'message': exc.user_message or exc.message, 'status_code': exc.status_code})}\n\n"
-            )
-            return
-        except Exception as exc:
-            classified = classify_exception(exc, context="chat_stream")
-            yield (
-                f"event: error\n"
-                f"data: {json.dumps(classified.detail.model_dump())}\n\n"
-            )
-            return
 
         background_tasks.add_task(
             chat_service.summarize_conversation,

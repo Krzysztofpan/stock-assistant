@@ -2,7 +2,7 @@
 
 import { FieldErrors, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { chatRequestFormSchema, chatRequestSchemaType } from "@/services/stockAssistantService/schemas"
+import { chatRequestFormSchema, chatRequestSchemaType, MAX_CHAT_MESSAGE_LENGTH } from "@/services/stockAssistantService/schemas"
 import { useParams, useRouter } from "next/navigation"
 import { useSendChatMessageStream } from "@/hooks/mutations/use-chat"
 import { setPendingChatMessage } from "@/lib/pending-chat-message"
@@ -31,8 +31,6 @@ export const promptInputVariants = cva(
   `,
 )
 
-const MAX_MESSAGE_LENGTH = 1000
-
 const InputWindow = () => {
   const router = useRouter()
   const { conversation_id } = useParams<{ conversation_id?: string }>()
@@ -49,8 +47,8 @@ const InputWindow = () => {
 
   const message = useWatch({ control, name: "message" }) ?? ""
   const messageLength = message.length
-  const usagePercentage = (messageLength / MAX_MESSAGE_LENGTH) * 100
-  const remainingCharacters = MAX_MESSAGE_LENGTH - messageLength
+  const usagePercentage = (messageLength / MAX_CHAT_MESSAGE_LENGTH) * 100
+  const remainingCharacters = MAX_CHAT_MESSAGE_LENGTH - messageLength
 
   const { ref: registerRef, ...messageField } = register("message")
 
@@ -60,15 +58,13 @@ const InputWindow = () => {
         conversationId: formData.conversationId,
         message: formData.message,
       })
-      addConversationToPool(
-        queryClient,
-        {
-          id: formData.conversationId,
-          is_bookmarked: false,
-          created_at: Date().toLocaleString(),
-          title: "New Conversation",
-          updated_at: Date().toLocaleString(),
-        })
+      addConversationToPool(queryClient, {
+        id: formData.conversationId,
+        is_bookmarked: false,
+        created_at: Date().toLocaleString(),
+        title: "New Conversation",
+        updated_at: Date().toLocaleString(),
+      })
       reset({ message: "", conversationId: formData.conversationId })
       router.replace(`/conversations/${formData.conversationId}`)
 
@@ -120,7 +116,7 @@ const InputWindow = () => {
           "
           id="message"
           placeholder="ask any question..."
-          maxLength={MAX_MESSAGE_LENGTH}
+          maxLength={MAX_CHAT_MESSAGE_LENGTH}
         />
         <div className="ml-auto flex gap-2 items-center">
           {messageLength

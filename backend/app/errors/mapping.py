@@ -137,3 +137,12 @@ def classify_exception(exc: Exception, *, context: str = "") -> ClassifiedError:
         user_message=user_facing_message(exc, context=context),
         detail=ErrorDetail(message=extracted.message, status_code=extracted.status_code),
     )
+
+
+def stream_error_data(exc: Exception, *, context: str = "") -> dict[str, str | int]:
+    if isinstance(exc, AppError):
+        return {
+            "message": exc.user_message or exc.message,
+            "status_code": exc.status_code,
+        }
+    return classify_exception(exc, context=context).detail.model_dump()
